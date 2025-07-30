@@ -10,7 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/events")
-@CrossOrigin("*")
+@CrossOrigin(origins = "http://localhost:3000")
 public class EventController {
     @Autowired
     private EventsService service;
@@ -20,10 +20,17 @@ public class EventController {
      return ResponseEntity.ok(service.save(event));
 }
 
-@GetMapping
-    public List<Event> getAllEvents(){
-    return service.getAllEvents();
+@GetMapping("/all-events")
+    public ResponseEntity<List<Event>> getAllEvents(){
+    List<Event> allEvents = service.getAllEvents();
+    if(allEvents.isEmpty()){
+        return ResponseEntity.noContent().build();
+    }else{
+        return ResponseEntity.ok(allEvents);
+    }
 }
+
+
 @DeleteMapping("/{id}")
     public void deleteEvent(@PathVariable long id){
     service.deleteEvent(id);

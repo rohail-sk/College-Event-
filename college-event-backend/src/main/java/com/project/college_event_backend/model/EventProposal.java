@@ -6,6 +6,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import lombok.*;
 
+import java.time.LocalDate;
+
 @Entity
 @Data
 @AllArgsConstructor
@@ -13,7 +15,20 @@ import lombok.*;
 public class EventProposal {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
+
     private long facultyId;
+    private String title;
+    private String description;
+    private String status;
+    private LocalDate EventDate;
+
+    public LocalDate getEventDate() {
+        return EventDate;
+    }
+
+    public void setEventDate(LocalDate eventDate) {
+        EventDate = eventDate;
+    }
 
     public long getId() {
         return id;
@@ -55,8 +70,6 @@ public class EventProposal {
         this.status = status;
     }
 
-    private String title;
-    private String description;
-    private String status;
+
 
 }

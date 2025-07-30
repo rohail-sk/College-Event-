@@ -1,10 +1,10 @@
 package com.project.college_event_backend.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.*;
+import org.antlr.v4.runtime.misc.NotNull;
+
+import java.time.LocalDate;
 
 @Entity
 @Data
@@ -15,7 +15,11 @@ public class Event {
     private long id;
     private String title;
     private String venue;
-    private String date;
+    @Column(nullable = false)
+    private LocalDate date;
+    private String description;
+    private String status;
+    private long createdBy;
 
     public long getId() {
         return id;
@@ -41,11 +45,11 @@ public class Event {
         this.venue = venue;
     }
 
-    public String getDate() {
+    public LocalDate getDate() {
         return date;
     }
 
-    public void setDate(String date) {
+    public void setDate(LocalDate date) {
         this.date = date;
     }
 
@@ -72,8 +76,4 @@ public class Event {
     public void setCreatedBy(long createdBy) {
         this.createdBy = createdBy;
     }
-
-    private String description;
-    private String status;
-    private long createdBy;
 }
