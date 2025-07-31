@@ -1,9 +1,8 @@
 package com.project.college_event_backend.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -20,14 +19,16 @@ public class EventProposal {
     private String title;
     private String description;
     private String status;
-    private LocalDate EventDate;
+    @Column(nullable = false)
+    @JsonProperty("date")
+    private LocalDate eventDate;
 
     public LocalDate getEventDate() {
-        return EventDate;
+        return eventDate;
     }
 
-    public void setEventDate(LocalDate eventDate) {
-        EventDate = eventDate;
+    public void setEventDate(LocalDate   eventDate) {
+        this.eventDate = eventDate;
     }
 
     public long getId() {

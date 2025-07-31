@@ -14,11 +14,6 @@ import java.util.List;
 public class EventController {
     @Autowired
     private EventsService service;
-@PostMapping
-    public ResponseEntity<Event> createEvent(@RequestBody Event event){
-     event.setStatus("approved");
-     return ResponseEntity.ok(service.save(event));
-}
 
 @GetMapping("/all-events")
     public ResponseEntity<List<Event>> getAllEvents(){
@@ -30,9 +25,14 @@ public class EventController {
     }
 }
 
-
-@DeleteMapping("/{id}")
-    public void deleteEvent(@PathVariable long id){
-    service.deleteEvent(id);
+@PostMapping("/create-event")
+    public ResponseEntity<Event> createEvent(@RequestBody Event req){
+    Event event = service.save(req);
+    if(event != null){
+        return ResponseEntity.status(201).body(event);
+    }
+    else{
+        return ResponseEntity.status(400).build();
+    }
 }
 }

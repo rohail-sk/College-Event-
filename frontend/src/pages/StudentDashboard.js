@@ -34,7 +34,7 @@ function StudentDashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem('user');
-    window.location.href = '/login';
+    window.location.href = 'http://localhost:3000';
   };
 
   return (

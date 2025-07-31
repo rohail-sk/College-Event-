@@ -11,7 +11,7 @@ public class AuthService {
     @Autowired
     private UserRepository repo;
 
-    @PostMapping("/login")
+
     public User findByEmailAndPasswordAndRole(String email, String password, String role) {
         return repo.findByEmailAndPasswordAndRole(email, password,role);
 

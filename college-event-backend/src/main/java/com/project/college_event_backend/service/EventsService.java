@@ -19,7 +19,5 @@ public class EventsService {
         return repo.findAll();
     }
 
-    public void deleteEvent(long id) {
-        repo.deleteById(id);
-    }
+
 }
