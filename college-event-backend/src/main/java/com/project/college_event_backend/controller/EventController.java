@@ -35,4 +35,59 @@ public class EventController {
         return ResponseEntity.status(400).build();
     }
 }
+    @PostMapping("/request-event")
+    public ResponseEntity<Event> EventProposalFromFaculty(@RequestBody Event req){
+        req.setStatus("Pending");
+        Event newEvent = service.EventProposalFromFaculty(req);
+
+        if(newEvent != null){
+            return ResponseEntity.status(201).body(newEvent);
+        }else{
+            return ResponseEntity.status(400).build();
+        }
+    }
+
+    @GetMapping("/all-requested-events")
+    public ResponseEntity <List<Event>> EventRequestForAdmin(){
+        List<Event>allRequestedEvents = service.getAllEventProposals();
+        if(allRequestedEvents.isEmpty()){
+            return ResponseEntity.noContent().build();
+        }else{
+            return ResponseEntity.ok(allRequestedEvents);
+        }
+    }
+
+    @GetMapping("/all-requested-events/{id}")
+    public ResponseEntity <List<Event>> EventRequestForAdmin(@PathVariable long id){
+        List<Event>allRequestedEvents = service.getAllEventProposalsById(id);
+        if(allRequestedEvents.isEmpty()){
+            return ResponseEntity.noContent().build();
+        }else{
+            return ResponseEntity.ok(allRequestedEvents);
+        }
+    }
+
+    @PostMapping("/approve-event/{id}")
+    public ResponseEntity<?> approvedEvents(@PathVariable long id){
+        Event eventProposal = service.getEventProposalById(id);
+        if(eventProposal != null){
+            eventProposal.setStatus("Approved");
+            service.saveProposal(eventProposal);
+            return ResponseEntity.ok(eventProposal);
+        }else{
+            return ResponseEntity.status(404).build();
+        }
+    }
+
+    @PostMapping("/reject-event/{id}")
+    public ResponseEntity<?> rejectEvent(@PathVariable long id){
+        Event eventProposal = service.getEventProposalById(id);
+        if(eventProposal != null){
+            eventProposal.setStatus("Rejected");
+            service.saveProposal(eventProposal);
+            return ResponseEntity.ok(eventProposal);
+        }else{
+            return ResponseEntity.status(404).build();
+        }
+    }
 }

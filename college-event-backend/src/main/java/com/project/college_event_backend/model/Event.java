@@ -13,13 +13,21 @@ import java.time.LocalDate;
 public class Event {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
+    private long facultyId;
     private String title;
     private String venue;
     @Column(nullable = false)
     private LocalDate date;
     private String description;
     private String status;
-    private long createdBy;
+
+    public long getFacultyId() {
+        return facultyId;
+    }
+
+    public void setFacultyId(long facultyId) {
+        this.facultyId = facultyId;
+    }
 
     public long getId() {
         return id;
@@ -69,11 +77,4 @@ public class Event {
         this.status = status;
     }
 
-    public long getCreatedBy() {
-        return createdBy;
-    }
-
-    public void setCreatedBy(long createdBy) {
-        this.createdBy = createdBy;
-    }
 }

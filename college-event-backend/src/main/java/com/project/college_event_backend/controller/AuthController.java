@@ -26,8 +26,21 @@ public class AuthController {
             return ResponseEntity.status(409).build();
         }else{
             User newUser = service.save(req);
-            newUser.setRole("student");
+            newUser.setRole("student"); 
             return ResponseEntity.status(201).body(newUser);
         }
     }
+
+    @PostMapping("/add-faculty")
+    public ResponseEntity<User> addNewFaculty(@RequestBody User req){
+        User existingUser = service.FindByEmailAndPassword(req.getEmail(),req.getPassword());
+        if(existingUser == null){
+            req.setRole("faculty");
+            service.save(req);
+            return ResponseEntity.status(201).body(existingUser);
+        }else{
+            return ResponseEntity.status(409).build();
+        }
+    }
+
 }

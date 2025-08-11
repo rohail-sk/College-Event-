@@ -1,15 +1,48 @@
 import React, { useState, useEffect } from 'react';
-import { getEvents, getRequestedEvents, approveEventRequest } from '../services/api';
-
+import { getEvents, getRequestedEvents, approveEventRequest, rejectEventRequest, registerFaculty } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 
 function AdminDashboard() {
+  const navigate = useNavigate();
+  
+  // Get user info from localStorage
+  const getUserInfo = () => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      return {
+        id: user.id || user._id || '',
+        name: user.name || '',
+        email: user.email || '',
+        role: user.role || 'admin'
+      };
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      return { id: '', name: '', email: '', role: 'admin' };
+    }
+  };
+  
+  const userInfo = getUserInfo();
   const [tab, setTab] = useState('view');
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
+  const [rejecting, setRejecting] = useState(null);
   const [reqLoading, setReqLoading] = useState(true);
   const [approving, setApproving] = useState(null);
+  
+  // Faculty registration state
+  const [facultyForm, setFacultyForm] = useState({ name: '', email: '', password: '' });
+  const [facultySubmitting, setFacultySubmitting] = useState(false);
+  const [facultySuccess, setFacultySuccess] = useState('');
+  const [facultyError, setFacultyError] = useState('');
+  
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    navigate('/auth');
+  };
 
   // Fetch all events
   useEffect(() => {
@@ -17,7 +50,12 @@ function AdminDashboard() {
       setLoading(true);
       try {
         const res = await getEvents();
-        setEvents(res.data || []);
+        // Filter to only show approved events
+        const approvedEvents = (res.data || []).filter(event => {
+          const status = (event.status || '').toString().trim().toLowerCase();
+          return status === 'approved';
+        });
+        setEvents(approvedEvents);
       } catch {
         setEvents([]);
       }
@@ -46,21 +84,83 @@ function AdminDashboard() {
     setApproving(id);
     try {
       await approveEventRequest(id);
-      setRequests(prev => prev.filter(r => r.id !== id));
-      // Optionally, notify faculty via backend or polling
-      alert('Event approved! Faculty can now submit final event details.');
+      // Update the status of the approved request instead of removing it
+      setRequests(prev => prev.map(r => 
+        r.id === id ? { ...r, status: 'Approved' } : r
+      ));
+      // Refresh events list
+      const eventsRes = await getEvents();
+      const approvedEvents = (eventsRes.data || []).filter(event => {
+        const status = (event.status || '').toString().trim().toLowerCase();
+        return status === 'approved';
+      });
+      setEvents(approvedEvents);
+      alert('Event approved! Faculty has been notified.');
     } catch {
       alert('Failed to approve event.');
     }
     setApproving(null);
   };
 
+  // Reject event request
+  const handleReject = async (id) => {
+    setRejecting(id);
+    try {
+      await rejectEventRequest(id);
+      // Update the status of the rejected request
+      setRequests(prev => prev.map(r => 
+        r.id === id ? { ...r, status: 'Rejected' } : r
+      ));
+      alert('Event request rejected.');
+    } catch {
+      alert('Failed to reject event.');
+    }
+    setRejecting(null);
+  };
+  
+  // Handle faculty form input changes
+  const handleFacultyChange = (e) => {
+    setFacultyForm({ ...facultyForm, [e.target.name]: e.target.value });
+  };
+  
+  // Handle faculty registration
+  const handleFacultySubmit = async (e) => {
+    e.preventDefault();
+    setFacultySubmitting(true);
+    setFacultySuccess('');
+    setFacultyError('');
+    
+    // Validate form
+    if (!facultyForm.name || !facultyForm.email || !facultyForm.password) {
+      setFacultyError('All fields are required');
+      setFacultySubmitting(false);
+      return;
+    }
+    
+    try {
+      // Call the API to register a new faculty
+      await registerFaculty(facultyForm);
+      setFacultySuccess('Faculty member registered successfully!');
+      // Reset the form
+      setFacultyForm({ name: '', email: '', password: '' });
+    } catch (error) {
+      setFacultyError(error.response?.data?.message || 'Failed to register faculty member');
+    }
+    
+    setFacultySubmitting(false);
+  };
+
   return (
     <div style={{ padding: '2rem', maxWidth: 900, margin: 'auto' }}>
       <h2>Admin Dashboard</h2>
-      <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-        <button onClick={() => setTab('view')} style={{ background: tab === 'view' ? '#333' : '#eee', color: tab === 'view' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>View All Events</button>
-        <button onClick={() => setTab('requests')} style={{ background: tab === 'requests' ? '#333' : '#eee', color: tab === 'requests' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Requested Events</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <button onClick={() => setTab('view')} style={{ background: tab === 'view' ? '#333' : '#eee', color: tab === 'view' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>View All Events</button>
+          <button onClick={() => setTab('requests')} style={{ background: tab === 'requests' ? '#333' : '#eee', color: tab === 'requests' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Requested Events</button>
+          <button onClick={() => setTab('faculty')} style={{ background: tab === 'faculty' ? '#333' : '#eee', color: tab === 'faculty' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Add Faculty</button>
+          <button onClick={() => setTab('profile')} style={{ background: tab === 'profile' ? '#333' : '#eee', color: tab === 'profile' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>My Profile</button>
+        </div>
+        <button onClick={handleLogout} style={{ background: '#d9534f', color: '#fff', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer', borderRadius: '4px' }}>Logout</button>
       </div>
 
       {tab === 'view' && (
@@ -89,20 +189,235 @@ function AdminDashboard() {
           {reqLoading ? <div>Loading requests...</div> : (
             requests.length === 0 ? <div>No event requests.</div> : (
               <div>
-                {requests.map(req => (
-                  <div key={req.id} style={{ border: '1px solid #f0ad4e', borderRadius: 8, padding: 16, marginBottom: 16, background: '#fffbe6' }}>
-                    <div><b>Faculty ID:</b> {req.facultyId}</div>
-                    <div><b>Title:</b> {req.title}</div>
-                    <div><b>Date:</b> {req.event_date}</div>
-                    <div><b>Description:</b> {req.description}</div>
-                    <button onClick={() => handleApprove(req.id)} disabled={approving === req.id} style={{ marginTop: 8, padding: '6px 16px', background: '#5cb85c', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: approving === req.id ? 'not-allowed' : 'pointer', opacity: approving === req.id ? 0.6 : 1 }}>
-                      {approving === req.id ? 'Approving...' : 'Approve'}
-                    </button>
-                  </div>
-                ))}
+                {requests.map(req => {
+                  const status = (req.status || '').toString().trim().toLowerCase();
+                  const isApproved = status === 'approved';
+                  const isRejected = status === 'rejected';
+                  const isPending = !isApproved && !isRejected;
+
+                  let borderColor = '#f0ad4e'; // Default orange for pending
+                  let backgroundColor = '#fffbe6'; // Default light yellow for pending
+
+                  if (isApproved) {
+                    borderColor = '#cccccc';
+                    backgroundColor = '#f2f2f2';
+                  } else if (isRejected) {
+                    borderColor = '#d9534f'; // Red border
+                    backgroundColor = '#f2dede'; // Light red background
+                  }
+
+                  return (
+                    <div key={req.id} style={{ 
+                      border: `1px solid ${borderColor}`, 
+                      borderRadius: 8, 
+                      padding: 16, 
+                      marginBottom: 16, 
+                      background: backgroundColor 
+                    }}>
+                      <div><b>Faculty ID:</b> {req.facultyId}</div>
+                      <div><b>Title:</b> {req.title}</div>
+                      <div><b>Date:</b> {req.date || req.event_date}</div>
+                      <div><b>Description:</b> {req.description}</div>
+                      <div><b>Venue:</b> {req.venue}</div>
+                      
+                      {/* Action Buttons */}
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                        {isApproved ? (
+                          <button disabled style={{ 
+                            padding: '6px 16px', 
+                            background: '#cccccc', 
+                            color: '#666666', 
+                            border: 'none', 
+                            borderRadius: 4, 
+                            fontWeight: 'bold', 
+                            cursor: 'not-allowed' 
+                          }}>
+                            Approved
+                          </button>
+                        ) : isRejected ? (
+                          <button disabled style={{ 
+                            padding: '6px 16px', 
+                            background: '#cccccc', 
+                            color: '#666666', 
+                            border: 'none', 
+                            borderRadius: 4, 
+                            fontWeight: 'bold', 
+                            cursor: 'not-allowed' 
+                          }}>
+                            Rejected
+                          </button>
+                        ) : (
+                          <>
+                            <button 
+                              onClick={() => handleApprove(req.id)} 
+                              disabled={approving === req.id || rejecting === req.id} 
+                              style={{ 
+                                padding: '6px 16px', 
+                                background: '#5cb85c', 
+                                color: '#fff', 
+                                border: 'none', 
+                                borderRadius: 4, 
+                                fontWeight: 'bold', 
+                                cursor: (approving === req.id || rejecting === req.id) ? 'not-allowed' : 'pointer', 
+                                opacity: (approving === req.id || rejecting === req.id) ? 0.6 : 1 
+                              }}>
+                              {approving === req.id ? 'Approving...' : 'Approve'}
+                            </button>
+                            <button 
+                              onClick={() => handleReject(req.id)} 
+                              disabled={approving === req.id || rejecting === req.id} 
+                              style={{ 
+                                padding: '6px 16px', 
+                                background: '#d9534f', 
+                                color: '#fff', 
+                                border: 'none', 
+                                borderRadius: 4, 
+                                fontWeight: 'bold', 
+                                cursor: (approving === req.id || rejecting === req.id) ? 'not-allowed' : 'pointer', 
+                                opacity: (approving === req.id || rejecting === req.id) ? 0.6 : 1 
+                              }}>
+                              {rejecting === req.id ? 'Rejecting...' : 'Reject'}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )
           )}
+        </div>
+      )}
+
+      {tab === 'faculty' && (
+        <div>
+          <h3>Add New Faculty Member</h3>
+          <div style={{ maxWidth: 500 }}>
+            <form onSubmit={handleFacultySubmit}>
+              <div style={{ marginBottom: 12 }}>
+                <label>Name:</label><br />
+                <input 
+                  type="text" 
+                  name="name" 
+                  value={facultyForm.name} 
+                  onChange={handleFacultyChange} 
+                  required 
+                  style={{ width: '100%', padding: 8 }} 
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label>Email:</label><br />
+                <input 
+                  type="email" 
+                  name="email" 
+                  value={facultyForm.email} 
+                  onChange={handleFacultyChange} 
+                  required 
+                  style={{ width: '100%', padding: 8 }} 
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label>Password:</label><br />
+                <input 
+                  type="password" 
+                  name="password" 
+                  value={facultyForm.password} 
+                  onChange={handleFacultyChange} 
+                  required 
+                  style={{ width: '100%', padding: 8 }} 
+                />
+              </div>
+              <button 
+                type="submit" 
+                disabled={facultySubmitting} 
+                style={{ 
+                  padding: '10px 32px', 
+                  background: '#333', 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: 4, 
+                  fontWeight: 'bold', 
+                  cursor: facultySubmitting ? 'not-allowed' : 'pointer',
+                  opacity: facultySubmitting ? 0.7 : 1 
+                }}
+              >
+                {facultySubmitting ? 'Registering...' : 'Register Faculty'}
+              </button>
+            </form>
+            
+            {facultySuccess && (
+              <div style={{ color: 'green', marginTop: 16, padding: 12, background: '#dff0d8', borderRadius: 4 }}>
+                {facultySuccess}
+              </div>
+            )}
+            
+            {facultyError && (
+              <div style={{ color: '#a94442', marginTop: 16, padding: 12, background: '#f2dede', borderRadius: 4 }}>
+                {facultyError}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {tab === 'profile' && (
+        <div>
+          <h3>My Profile</h3>
+          <div style={{ maxWidth: 600, padding: 24, background: '#f9f9f9', borderRadius: 8, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ 
+                width: 80, 
+                height: 80, 
+                borderRadius: '50%', 
+                background: '#333', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: 36,
+                fontWeight: 'bold',
+                marginRight: 24
+              }}>
+                {userInfo.name ? userInfo.name[0].toUpperCase() : 'A'}
+              </div>
+              <div>
+                <h2 style={{ margin: 0, marginBottom: 8 }}>{userInfo.name || 'Admin User'}</h2>
+                <p style={{ margin: 0, color: '#666', fontStyle: 'italic', textTransform: 'capitalize' }}>{userInfo.role}</p>
+              </div>
+            </div>
+            
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontWeight: 'bold', margin: '0 0 4px 0' }}>User ID:</p>
+              <p style={{ margin: 0, padding: 8, background: '#eee', borderRadius: 4 }}>{userInfo.id}</p>
+            </div>
+            
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontWeight: 'bold', margin: '0 0 4px 0' }}>Email Address:</p>
+              <p style={{ margin: 0, padding: 8, background: '#eee', borderRadius: 4 }}>{userInfo.email}</p>
+            </div>
+            
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontWeight: 'bold', margin: '0 0 4px 0' }}>Role:</p>
+              <p style={{ margin: 0, padding: 8, background: '#eee', borderRadius: 4, textTransform: 'capitalize' }}>{userInfo.role}</p>
+            </div>
+            
+            <button 
+              onClick={handleLogout}
+              style={{ 
+                marginTop: 16,
+                padding: '10px 24px',
+                background: '#d9534f',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              Logout
+            </button>
+          </div>
         </div>
       )}
     </div>

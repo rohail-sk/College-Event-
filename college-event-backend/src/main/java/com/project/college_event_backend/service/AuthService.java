@@ -24,4 +24,9 @@ public class AuthService {
     public User save(User req) {
         return repo.save(req);
     }
+
+    public User FindByEmailAndPassword(String email, String password) {
+        return repo.findByEmailAndPassword(email,password);
+    }
+
 }
