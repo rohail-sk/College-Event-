@@ -90,4 +90,27 @@ public class EventController {
             return ResponseEntity.status(404).build();
         }
     }
+
+    @GetMapping("/event-by-id/{id}")
+    public ResponseEntity<Event> getEventById(@PathVariable long id){
+    Event event = service.getEventById(id);
+    if(event != null){
+        return ResponseEntity.ok(event);
+    }else{
+        return ResponseEntity.status(404).build();
+    }
+    }
+
+    @PutMapping("/edit-existing-event/{id}")
+    public ResponseEntity<Event> updateEvent(@PathVariable long id , @RequestBody Event updateEvent){
+        Event existingEvent = service.getEventById(id);
+        if(existingEvent != null){
+            Event updatedEvent = service.updateEvent(id,updateEvent);
+            //service.deleteEventByIdAndStatus(id);
+            return ResponseEntity.ok(updatedEvent);
+        }
+        else{
+            return ResponseEntity.status(404).build();
+        }
+    }
 }

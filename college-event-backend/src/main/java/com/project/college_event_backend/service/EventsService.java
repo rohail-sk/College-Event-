@@ -35,7 +35,39 @@ public class EventsService {
     }
 
     public List<Event> getAllEventProposalsById(long id) {
-        return repo.findByFacultyId(id);
+        return repo.findAllByFacultyId(id);
+    }
+
+    public Event getEventById(long id) {
+        return repo.findByEventId(id);
+    }
+
+    public Event updateEvent(long id, Event updatedEvent){
+        Event event = repo.findById(id).orElse(null);
+        if (event != null) {
+            event.setDate(updatedEvent.getDate());
+            event.setDescription(updatedEvent.getDescription());
+            event.setRemark(updatedEvent.getRemark());
+            event.setStatus(updatedEvent.getStatus());
+            event.setTitle(updatedEvent.getTitle());
+            event.setFacultyId(updatedEvent.getFacultyId());
+            repo.save(event);
+            return event;
+        }else{
+            return null;
+        }
+
+    }
+
+//    public Event updateEvent(Event updateEvent) {
+//        return repo.save(updateEvent);
+//    }
+
+    public void deleteEventByIdAndStatus(long id) {
+        Event event = repo.findByEventId(id);
+        if(event.getStatus().equalsIgnoreCase("Rejected")){
+            repo.delete(event);
+        }
     }
 }
 

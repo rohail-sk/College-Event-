@@ -21,8 +21,31 @@ export const approveEventRequest = (requestId) => axios.post(`${BASE_URL}/events
 // Admin: reject a requested event
 export const rejectEventRequest = (requestId) => axios.post(`${BASE_URL}/events/reject-event/${requestId}`);
 
+// Admin: modify a requested event with a remark
+export const addRemarkToEvent = (requestId, requestBody) => axios.put(`${BASE_URL}/admin/modify-event/${requestId}`, requestBody);
+
+// Admin: create event directly (bypassing faculty request)
+export const adminCreateEvent = (data) => axios.post(`${BASE_URL}/events/create-event`, data);
+
 // After admin approval, faculty creates event (final registration)
 export const createEvent = (data) => axios.post(`${BASE_URL}/events/create-event`, data);
+
+// Faculty: edit an existing event request
+export const editEventRequest = (eventId, eventData) => axios.put(`${BASE_URL}/events/edit-existing-event/${eventId}`, eventData);
+
+// Faculty: mark remark as notified/read to prevent repeated notifications
+export const markRemarkAsNotified = (eventId) => {
+  // Make sure we have a valid event ID
+  if (!eventId) {
+    console.error('Invalid eventId provided to markRemarkAsNotified:', eventId);
+    return Promise.reject(new Error('Invalid event ID'));
+  }
+  return axios.put(`${BASE_URL}/events/mark-remark-notified/${eventId}`, { remarkNotified: true })
+    .catch(error => {
+      console.error('Failed to mark remark as notified:', error);
+      throw error;
+    });
+};
 
 // Fetch all events requested by a specific faculty
 export const getEventsByFacultyId = (facultyId) => axios.get(`${BASE_URL}/events/all-requested-events/${facultyId}`);

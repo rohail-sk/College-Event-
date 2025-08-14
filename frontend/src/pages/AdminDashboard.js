@@ -1,6 +1,48 @@
 import React, { useState, useEffect } from 'react';
-import { getEvents, getRequestedEvents, approveEventRequest, rejectEventRequest, registerFaculty } from '../services/api';
+import { getEvents, getRequestedEvents, approveEventRequest, rejectEventRequest, registerFaculty, addRemarkToEvent, adminCreateEvent } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+
+// Modal component for remarks
+const Modal = ({ show, onClose, title, children }) => {
+  if (!show) return null;
+  
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: 8,
+        padding: 24,
+        width: '90%',
+        maxWidth: 500,
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        boxShadow: '0 5px 15px rgba(0,0,0,0.3)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0 }}>{title}</h3>
+          <button 
+            onClick={onClose} 
+            style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
 
 
 function AdminDashboard() {
@@ -30,6 +72,10 @@ function AdminDashboard() {
   const [rejecting, setRejecting] = useState(null);
   const [reqLoading, setReqLoading] = useState(true);
   const [approving, setApproving] = useState(null);
+  const [modifying, setModifying] = useState(null); // Track which event is being modified
+  const [currentEventObj, setCurrentEventObj] = useState(null); // Store the event being modified
+  const [remarkText, setRemarkText] = useState(''); // Remark to be added
+  const [showModifyModal, setShowModifyModal] = useState(false); // Control modify modal visibility
   
   // Faculty registration state
   const [facultyForm, setFacultyForm] = useState({ name: '', email: '', password: '' });
@@ -37,11 +83,17 @@ function AdminDashboard() {
   const [facultySuccess, setFacultySuccess] = useState('');
   const [facultyError, setFacultyError] = useState('');
   
+  // Event creation state
+  const [eventForm, setEventForm] = useState({ title: '', date: '', venue: '', description: '' });
+  const [eventSubmitting, setEventSubmitting] = useState(false);
+  const [eventSuccess, setEventSuccess] = useState('');
+  const [eventError, setEventError] = useState('');
+  
   // Handle logout
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
-    navigate('/auth');
+    window.location.href = 'http://localhost:3000/';
   };
 
   // Fetch all events
@@ -118,6 +170,43 @@ function AdminDashboard() {
     setRejecting(null);
   };
   
+  // Open modify modal with current event data
+  const openModifyModal = (event) => {
+    setCurrentEventObj(event);
+    setRemarkText(event.remark || '');
+    setShowModifyModal(true);
+  };
+  
+  // Handle modify event with remark
+  const handleModify = async () => {
+    if (!currentEventObj) return;
+    
+    setModifying(currentEventObj.id);
+    
+    try {
+      // Send the full object along with the remark
+      const completeEventData = {
+        ...currentEventObj,
+        remark: remarkText
+      };
+      
+      await addRemarkToEvent(currentEventObj.id, completeEventData);
+      
+      // Update local state to reflect the change
+      setRequests(prev => prev.map(r => 
+        r.id === currentEventObj.id ? { ...r, remark: remarkText } : r
+      ));
+      
+      setShowModifyModal(false);
+      alert('Remark added successfully.');
+    } catch (error) {
+      console.error('Error adding remark:', error);
+      alert('Failed to add remark.');
+    }
+    
+    setModifying(null);
+  };
+  
   // Handle faculty form input changes
   const handleFacultyChange = (e) => {
     setFacultyForm({ ...facultyForm, [e.target.name]: e.target.value });
@@ -149,28 +238,85 @@ function AdminDashboard() {
     
     setFacultySubmitting(false);
   };
+  
+  // Handle event form input changes
+  const handleEventChange = (e) => {
+    setEventForm({ ...eventForm, [e.target.name]: e.target.value });
+  };
+  
+  // Handle event creation submission
+  const handleEventSubmit = async (e) => {
+    e.preventDefault();
+    setEventSubmitting(true);
+    setEventSuccess('');
+    setEventError('');
+    
+    // Validate form
+    if (!eventForm.title || !eventForm.date || !eventForm.venue || !eventForm.description) {
+      setEventError('Title, date, venue and description are required');
+      setEventSubmitting(false);
+      return;
+    }
+    
+    // Validation: only allow future dates
+    const today = new Date();
+    const selected = new Date(eventForm.date);
+    if (selected <= today) {
+      setEventError('Please select a future date for the event.');
+      setEventSubmitting(false);
+      return;
+    }
+    
+    try {
+      // Call API to create event
+      const eventData = {
+        ...eventForm,
+        adminId: userInfo.id,
+        status: 'Approved' // Set as approved since admin is creating directly
+      };
+      
+      await adminCreateEvent(eventData);
+      setEventSuccess('Event created successfully!');
+      
+      // Reset form
+      setEventForm({
+        title: '',
+        date: '',
+        venue: '',
+        description: ''
+      });
+      
+      // Refresh events list
+      const res = await getEvents();
+      setEvents(res.data || []);
+    } catch (error) {
+      setEventError(error.response?.data?.message || 'Failed to create event');
+    }
+    
+    setEventSubmitting(false);
+  };
 
   return (
     <div style={{ padding: '2rem', maxWidth: 900, margin: 'auto' }}>
-      <h2>Admin Dashboard</h2>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <h2 style={{ marginBottom: 24 }}>Admin Dashboard</h2>
+      <div style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', gap: 16 }}>
           <button onClick={() => setTab('view')} style={{ background: tab === 'view' ? '#333' : '#eee', color: tab === 'view' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>View All Events</button>
           <button onClick={() => setTab('requests')} style={{ background: tab === 'requests' ? '#333' : '#eee', color: tab === 'requests' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Requested Events</button>
+          <button onClick={() => setTab('create')} style={{ background: tab === 'create' ? '#333' : '#eee', color: tab === 'create' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Create Event</button>
           <button onClick={() => setTab('faculty')} style={{ background: tab === 'faculty' ? '#333' : '#eee', color: tab === 'faculty' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Add Faculty</button>
           <button onClick={() => setTab('profile')} style={{ background: tab === 'profile' ? '#333' : '#eee', color: tab === 'profile' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>My Profile</button>
         </div>
-        <button onClick={handleLogout} style={{ background: '#d9534f', color: '#fff', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer', borderRadius: '4px' }}>Logout</button>
       </div>
 
       {tab === 'view' && (
         <div>
-          <h3>All Events</h3>
+          <h3 style={{ marginBottom: 24 }}>All Events</h3>
           {loading ? <div>Loading events...</div> : (
             events.length === 0 ? <div>No events found.</div> : (
               <div>
                 {events.map(event => (
-                  <div key={event.id} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16, marginBottom: 16, background: '#fafafa' }}>
+                  <div key={event.id} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 20, marginBottom: 24, background: '#fafafa', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                     <div style={{ fontWeight: 'bold', fontSize: 16 }}>{event.title || event.name}</div>
                     <div>Date: {event.event_date || event.date}</div>
                     <div>Description: {event.description}</div>
@@ -185,7 +331,7 @@ function AdminDashboard() {
 
       {tab === 'requests' && (
         <div>
-          <h3>Requested Events</h3>
+          <h3 style={{ marginBottom: 24 }}>Requested Events</h3>
           {reqLoading ? <div>Loading requests...</div> : (
             requests.length === 0 ? <div>No event requests.</div> : (
               <div>
@@ -210,9 +356,10 @@ function AdminDashboard() {
                     <div key={req.id} style={{ 
                       border: `1px solid ${borderColor}`, 
                       borderRadius: 8, 
-                      padding: 16, 
-                      marginBottom: 16, 
-                      background: backgroundColor 
+                      padding: 20, 
+                      marginBottom: 24, 
+                      background: backgroundColor,
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                     }}>
                       <div><b>Faculty ID:</b> {req.facultyId}</div>
                       <div><b>Title:</b> {req.title}</div>
@@ -220,8 +367,22 @@ function AdminDashboard() {
                       <div><b>Description:</b> {req.description}</div>
                       <div><b>Venue:</b> {req.venue}</div>
                       
+                      {/* Display remark if present */}
+                      {req.remark && (
+                        <div style={{ 
+                          marginTop: '8px',
+                          padding: '8px', 
+                          background: '#f8f9fa', 
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontSize: '14px'
+                        }}>
+                          <strong>Remark:</strong> {req.remark}
+                        </div>
+                      )}
+                      
                       {/* Action Buttons */}
-                      <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
                         {isApproved ? (
                           <button disabled style={{ 
                             padding: '6px 16px', 
@@ -250,7 +411,7 @@ function AdminDashboard() {
                           <>
                             <button 
                               onClick={() => handleApprove(req.id)} 
-                              disabled={approving === req.id || rejecting === req.id} 
+                              disabled={approving === req.id || rejecting === req.id || modifying === req.id} 
                               style={{ 
                                 padding: '6px 16px', 
                                 background: '#5cb85c', 
@@ -258,14 +419,14 @@ function AdminDashboard() {
                                 border: 'none', 
                                 borderRadius: 4, 
                                 fontWeight: 'bold', 
-                                cursor: (approving === req.id || rejecting === req.id) ? 'not-allowed' : 'pointer', 
-                                opacity: (approving === req.id || rejecting === req.id) ? 0.6 : 1 
+                                cursor: (approving === req.id || rejecting === req.id || modifying === req.id) ? 'not-allowed' : 'pointer', 
+                                opacity: (approving === req.id || rejecting === req.id || modifying === req.id) ? 0.6 : 1 
                               }}>
                               {approving === req.id ? 'Approving...' : 'Approve'}
                             </button>
                             <button 
                               onClick={() => handleReject(req.id)} 
-                              disabled={approving === req.id || rejecting === req.id} 
+                              disabled={approving === req.id || rejecting === req.id || modifying === req.id} 
                               style={{ 
                                 padding: '6px 16px', 
                                 background: '#d9534f', 
@@ -273,10 +434,25 @@ function AdminDashboard() {
                                 border: 'none', 
                                 borderRadius: 4, 
                                 fontWeight: 'bold', 
-                                cursor: (approving === req.id || rejecting === req.id) ? 'not-allowed' : 'pointer', 
-                                opacity: (approving === req.id || rejecting === req.id) ? 0.6 : 1 
+                                cursor: (approving === req.id || rejecting === req.id || modifying === req.id) ? 'not-allowed' : 'pointer', 
+                                opacity: (approving === req.id || rejecting === req.id || modifying === req.id) ? 0.6 : 1 
                               }}>
                               {rejecting === req.id ? 'Rejecting...' : 'Reject'}
+                            </button>
+                            <button 
+                              onClick={() => openModifyModal(req)} 
+                              disabled={approving === req.id || rejecting === req.id || modifying === req.id} 
+                              style={{ 
+                                padding: '6px 16px', 
+                                background: '#0275d8', 
+                                color: '#fff', 
+                                border: 'none', 
+                                borderRadius: 4, 
+                                fontWeight: 'bold', 
+                                cursor: (approving === req.id || rejecting === req.id || modifying === req.id) ? 'not-allowed' : 'pointer', 
+                                opacity: (approving === req.id || rejecting === req.id || modifying === req.id) ? 0.6 : 1 
+                              }}>
+                              {modifying === req.id ? 'Modifying...' : 'Modify'}
                             </button>
                           </>
                         )}
@@ -290,9 +466,81 @@ function AdminDashboard() {
         </div>
       )}
 
+      {tab === 'create' && (
+        <div>
+          <h3 style={{ marginBottom: 24 }}>Create New Event</h3>
+          <div style={{ maxWidth: 500 }}>
+            <form onSubmit={handleEventSubmit}>
+              <div style={{ marginBottom: 12 }}>
+                <label>Title:</label><br />
+                <input 
+                  type="text" 
+                  name="title" 
+                  value={eventForm.title} 
+                  onChange={handleEventChange} 
+                  required 
+                  style={{ width: '100%', padding: 8 }} 
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label>Date:</label><br />
+                <input 
+                  type="date" 
+                  name="date" 
+                  value={eventForm.date} 
+                  onChange={handleEventChange} 
+                  required 
+                  style={{ width: '100%', padding: 8 }} 
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label>Venue:</label><br />
+                <input 
+                  type="text" 
+                  name="venue" 
+                  value={eventForm.venue} 
+                  onChange={handleEventChange} 
+                  required 
+                  style={{ width: '100%', padding: 8 }} 
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label>Description:</label><br />
+                <textarea 
+                  name="description" 
+                  value={eventForm.description} 
+                  onChange={handleEventChange} 
+                  required 
+                  style={{ width: '100%', padding: 8, minHeight: 100 }} 
+                />
+              </div>
+              
+              {eventError && <div style={{ color: 'red', marginBottom: 16 }}>{eventError}</div>}
+              {eventSuccess && <div style={{ color: 'green', marginBottom: 16 }}>{eventSuccess}</div>}
+              
+              <button 
+                type="submit" 
+                disabled={eventSubmitting} 
+                style={{ 
+                  padding: '8px 16px', 
+                  background: '#5cb85c', 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: 4, 
+                  cursor: eventSubmitting ? 'not-allowed' : 'pointer',
+                  opacity: eventSubmitting ? 0.7 : 1
+                }}
+              >
+                {eventSubmitting ? 'Creating...' : 'Create Event'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {tab === 'faculty' && (
         <div>
-          <h3>Add New Faculty Member</h3>
+          <h3 style={{ marginBottom: 24 }}>Add New Faculty Member</h3>
           <div style={{ maxWidth: 500 }}>
             <form onSubmit={handleFacultySubmit}>
               <div style={{ marginBottom: 12 }}>
@@ -363,7 +611,7 @@ function AdminDashboard() {
       
       {tab === 'profile' && (
         <div>
-          <h3>My Profile</h3>
+          <h3 style={{ marginBottom: 24 }}>My Profile</h3>
           <div style={{ maxWidth: 600, padding: 24, background: '#f9f9f9', borderRadius: 8, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
               <div style={{ 
@@ -420,6 +668,56 @@ function AdminDashboard() {
           </div>
         </div>
       )}
+      
+      {/* Modify Modal */}
+      <Modal
+        show={showModifyModal}
+        onClose={() => setShowModifyModal(false)}
+        title="Add Remark"
+      >
+        {currentEventObj && (
+          <div>
+            <div style={{ marginBottom: '16px' }}>
+              <h4 style={{ margin: '0 0 8px 0' }}>Event Details:</h4>
+              <p><strong>Faculty ID:</strong> {currentEventObj.facultyId}</p>
+              <p><strong>Title:</strong> {currentEventObj.title}</p>
+              <p><strong>Date:</strong> {currentEventObj.date}</p>
+              <p><strong>Venue:</strong> {currentEventObj.venue}</p>
+            </div>
+            <div>
+              <textarea
+                value={remarkText}
+                onChange={(e) => setRemarkText(e.target.value)}
+                placeholder="Enter remark for the faculty regarding this event"
+                style={{ width: '100%', height: '100px', padding: '8px', marginBottom: '16px' }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button 
+                onClick={() => setShowModifyModal(false)}
+                style={{ padding: '8px 16px', background: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleModify}
+                disabled={modifying === currentEventObj.id}
+                style={{ 
+                  padding: '8px 16px', 
+                  background: '#0275d8', 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: modifying === currentEventObj.id ? 'not-allowed' : 'pointer',
+                  opacity: modifying === currentEventObj.id ? 0.7 : 1
+                }}
+              >
+                {modifying === currentEventObj.id ? 'Submitting...' : 'Submit Remark'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

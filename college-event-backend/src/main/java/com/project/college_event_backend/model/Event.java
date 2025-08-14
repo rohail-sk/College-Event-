@@ -20,6 +20,7 @@ public class Event {
     private LocalDate date;
     private String description;
     private String status;
+    private String remark;
 
     public long getFacultyId() {
         return facultyId;
@@ -71,6 +72,14 @@ public class Event {
 
     public String getStatus() {
         return status;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
     }
 
     public void setStatus(String status) {

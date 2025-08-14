@@ -61,7 +61,7 @@ function StudentDashboard() {
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
-    navigate('/auth');
+    window.location.href = 'http://localhost:3000/';
   };
 
   return (
