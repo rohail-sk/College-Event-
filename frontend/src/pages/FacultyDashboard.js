@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getEvents, requestEvent, getRequestedEvents, getEventsByFacultyId, editEventRequest, markRemarkAsNotified } from '../services/api';
+import { getEvents, requestEvent, getRequestedEvents, getEventsByFacultyId, editEventRequest, markRemarkAsNotified, cancelEvent } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 function FacultyDashboard() {
@@ -60,6 +60,7 @@ function FacultyDashboard() {
   const [myRequests, setMyRequests] = useState([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
   const [isValidFaculty, setIsValidFaculty] = useState(true);
+  const [cancellingEventId, setCancellingEventId] = useState(null);
   
   // Check user role on component mount and prevent admin data leakage
   useEffect(() => {
@@ -117,6 +118,25 @@ function FacultyDashboard() {
   // Handle form input
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  // Handle cancelling an event
+  const handleCancelEvent = async (eventId) => {
+    // Confirm with the user
+    if (window.confirm('Are you sure you want to cancel this event?')) {
+      setCancellingEventId(eventId);
+      try {
+        await cancelEvent(eventId);
+        // Remove the event from the myRequests list
+        setMyRequests(prev => prev.filter(event => (event.id !== eventId && event._id !== eventId)));
+        alert('Event cancelled successfully');
+      } catch (error) {
+        console.error('Error cancelling event:', error);
+        alert('Failed to cancel event. Please try again.');
+      } finally {
+        setCancellingEventId(null);
+      }
+    }
   };
 
   // Handle event request submit (API call)
@@ -314,7 +334,7 @@ function FacultyDashboard() {
         <>
           <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
             <button onClick={() => setTab('view')} style={{ background: tab === 'view' ? '#333' : '#eee', color: tab === 'view' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>View Upcoming Events</button>
-            <button onClick={() => setTab('requests')} style={{ background: tab === 'requests' ? '#333' : '#eee', color: tab === 'requests' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>My Requested Events</button>
+            <button onClick={() => setTab('requests')} style={{ background: tab === 'requests' ? '#333' : '#eee', color: tab === 'requests' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>My Events</button>
             <button onClick={() => setTab('create')} style={{ background: tab === 'create' ? '#333' : '#eee', color: tab === 'create' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Request New Event</button>
             <button onClick={() => setTab('profile')} style={{ background: tab === 'profile' ? '#333' : '#eee', color: tab === 'profile' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>My Profile</button>
           </div>
@@ -341,7 +361,7 @@ function FacultyDashboard() {
 
           {tab === 'requests' && (
             <div>
-              <h3>My Requested Events</h3>
+              <h3>My Events</h3>
               {requestsLoading ? <div>Loading your requests...</div> : (
                 myRequests.length === 0 ? (
                   <div>
@@ -391,6 +411,26 @@ function FacultyDashboard() {
                               )}
                             </div>
                           )}
+                          
+                          {/* Actions row */}
+                          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                              style={{ 
+                                padding: '4px 12px', 
+                                background: '#d9534f', 
+                                color: '#fff', 
+                                border: 'none', 
+                                borderRadius: 4, 
+                                cursor: 'pointer', 
+                                fontSize: 12,
+                                opacity: cancellingEventId === (request.id || request._id) ? 0.7 : 1
+                              }}
+                              onClick={() => handleCancelEvent(request.id || request._id)}
+                              disabled={cancellingEventId === (request.id || request._id)}
+                            >
+                              {cancellingEventId === (request.id || request._id) ? 'Cancelling...' : 'Cancel Event'}
+                            </button>
+                          </div>
                         </div>
                       );
                     })}

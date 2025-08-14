@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getEvents, getRequestedEvents, approveEventRequest, rejectEventRequest, registerFaculty, addRemarkToEvent, adminCreateEvent } from '../services/api';
+import { getEvents, getRequestedEvents, approveEventRequest, rejectEventRequest, registerFaculty, addRemarkToEvent, adminCreateEvent, getEventsByFacultyId, cancelEvent } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 // Modal component for remarks
@@ -89,6 +89,32 @@ function AdminDashboard() {
   const [eventSuccess, setEventSuccess] = useState('');
   const [eventError, setEventError] = useState('');
   
+  // My Events state
+  const [myEvents, setMyEvents] = useState([]);
+  const [myEventsLoading, setMyEventsLoading] = useState(true);
+  const [cancellingEventId, setCancellingEventId] = useState(null);
+  
+  // Handle cancel event
+  const handleCancelEvent = async (eventId) => {
+    // Confirm with the user
+    if (window.confirm('Are you sure you want to cancel this event?')) {
+      setCancellingEventId(eventId);
+      try {
+        await cancelEvent(eventId);
+        // Remove the event from the myEvents list
+        setMyEvents(prev => prev.filter(event => (event.id !== eventId && event._id !== eventId)));
+        // Remove the event from requests if it's there
+        setRequests(prev => prev.filter(event => (event.id !== eventId && event._id !== eventId)));
+        alert('Event cancelled successfully');
+      } catch (error) {
+        console.error('Error cancelling event:', error);
+        alert('Failed to cancel event. Please try again.');
+      } finally {
+        setCancellingEventId(null);
+      }
+    }
+  };
+
   // Handle logout
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -130,6 +156,40 @@ function AdminDashboard() {
     };
     fetchRequests();
   }, []);
+  
+  // Fetch my events (admin's events by facultyId)
+  useEffect(() => {
+    const fetchMyEvents = async () => {
+      if (tab === 'myevents' && userInfo.id) {
+        setMyEventsLoading(true);
+        try {
+          // Get events associated with this admin's facultyId
+          const res = await getEventsByFacultyId(userInfo.id);
+          
+          // Filter events to only include those created by this admin
+          const adminEvents = (res.data || []).filter(event => {
+            // Check various fields that might indicate the admin created this event
+            return (
+              // Admin might be identified by different fields in different contexts
+              (event.createdBy === userInfo.id) || 
+              (event.facultyId === userInfo.id) ||
+              (event.creatorId === userInfo.id) ||
+              (event.adminId === userInfo.id) ||
+              // If the admin created the event directly
+              (event.createdByAdmin === true)
+            );
+          });
+          
+          setMyEvents(adminEvents);
+        } catch (err) {
+          console.error('Error fetching my events:', err);
+          setMyEvents([]);
+        }
+        setMyEventsLoading(false);
+      }
+    };
+    fetchMyEvents();
+  }, [tab, userInfo.id]);
 
   // Approve event request (real API)
   const handleApprove = async (id) => {
@@ -272,6 +332,7 @@ function AdminDashboard() {
       const eventData = {
         ...eventForm,
         adminId: userInfo.id,
+        facultyId: userInfo.id, // Add facultyId field with the admin's ID
         status: 'Approved' // Set as approved since admin is creating directly
       };
       
@@ -303,6 +364,7 @@ function AdminDashboard() {
         <div style={{ display: 'flex', gap: 16 }}>
           <button onClick={() => setTab('view')} style={{ background: tab === 'view' ? '#333' : '#eee', color: tab === 'view' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>View All Events</button>
           <button onClick={() => setTab('requests')} style={{ background: tab === 'requests' ? '#333' : '#eee', color: tab === 'requests' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Requested Events</button>
+          <button onClick={() => setTab('myevents')} style={{ background: tab === 'myevents' ? '#333' : '#eee', color: tab === 'myevents' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>My Events</button>
           <button onClick={() => setTab('create')} style={{ background: tab === 'create' ? '#333' : '#eee', color: tab === 'create' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Create Event</button>
           <button onClick={() => setTab('faculty')} style={{ background: tab === 'faculty' ? '#333' : '#eee', color: tab === 'faculty' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Add Faculty</button>
           <button onClick={() => setTab('profile')} style={{ background: tab === 'profile' ? '#333' : '#eee', color: tab === 'profile' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>My Profile</button>
@@ -328,6 +390,75 @@ function AdminDashboard() {
           )}
         </div>
       )}
+      
+      {tab === 'myevents' && (
+        <div>
+          <h3 style={{ marginBottom: 24 }}>My Events</h3>
+          {myEventsLoading ? <div>Loading my events...</div> : (
+            myEvents.length === 0 ? <div>You haven't created any events yet.</div> : (
+              <div>
+                {myEvents.map(event => {
+                  const status = (event.status || '').toString().trim().toLowerCase();
+                  let statusColor = '#999', statusBg = '#eee', statusText = status || 'pending';
+                  
+                  if (status === 'approved') { 
+                    statusColor = '#2e7d32'; 
+                    statusBg = '#e8f5e9'; 
+                    statusText = 'Approved'; 
+                  } else if (status === 'rejected') { 
+                    statusColor = '#c62828'; 
+                    statusBg = '#ffebee'; 
+                    statusText = 'Rejected'; 
+                  } else if (status === 'pending') { 
+                    statusColor = '#f57c00'; 
+                    statusBg = '#fff3e0'; 
+                    statusText = 'Pending'; 
+                  }
+                  
+                  return (
+                    <div key={event.id || event._id} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 20, marginBottom: 24, background: '#fafafa', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <strong>{event.title}</strong>
+                        <span style={{ background: statusBg, color: statusColor, padding: '2px 8px', borderRadius: 12, fontSize: 12, textTransform: 'capitalize' }}>{statusText}</span>
+                      </div>
+                      <div>Date: {event.date || event.event_date}</div>
+                      <div>Description: {event.description}</div>
+                      <div>Venue: {event.venue}</div>
+                      
+                      {/* Show remark if present */}
+                      {event.remark && (
+                        <div style={{ marginTop: 8, background: '#fffbe6', border: '1px solid #ffe58f', padding: 10, borderRadius: 6 }}>
+                          <strong>Admin Remark:</strong> {event.remark}
+                        </div>
+                      )}
+                      
+                      {/* Actions row */}
+                      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                          style={{ 
+                            padding: '4px 12px', 
+                            background: '#d9534f', 
+                            color: '#fff', 
+                            border: 'none', 
+                            borderRadius: 4, 
+                            cursor: 'pointer', 
+                            fontSize: 12,
+                            opacity: cancellingEventId === (event.id || event._id) ? 0.7 : 1
+                          }}
+                          onClick={() => handleCancelEvent(event.id || event._id)}
+                          disabled={cancellingEventId === (event.id || event._id)}
+                        >
+                          {cancellingEventId === (event.id || event._id) ? 'Cancelling...' : 'Cancel Event'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
+        </div>
+      )}
 
       {tab === 'requests' && (
         <div>
@@ -337,8 +468,9 @@ function AdminDashboard() {
               <div>
                 {requests.map(req => {
                   const status = (req.status || '').toString().trim().toLowerCase();
-                  const isApproved = status === 'approved';
-                  const isRejected = status === 'rejected';
+                  // More lenient check for approved status
+                  const isApproved = status === 'approved' || status.includes('approve');
+                  const isRejected = status === 'rejected' || status.includes('reject');
                   const isPending = !isApproved && !isRejected;
 
                   let borderColor = '#f0ad4e'; // Default orange for pending
@@ -366,6 +498,17 @@ function AdminDashboard() {
                       <div><b>Date:</b> {req.date || req.event_date}</div>
                       <div><b>Description:</b> {req.description}</div>
                       <div><b>Venue:</b> {req.venue}</div>
+                      <div style={{ 
+                        marginTop: '8px', 
+                        padding: '4px 8px', 
+                        backgroundColor: isApproved ? '#e8f5e9' : (isRejected ? '#ffebee' : '#fff9c4'),
+                        color: isApproved ? '#2e7d32' : (isRejected ? '#c62828' : '#f57f17'),
+                        display: 'inline-block',
+                        borderRadius: '4px',
+                        fontWeight: 'bold'
+                      }}>
+                        <b>Status:</b> {req.status || 'Pending'}
+                      </div>
                       
                       {/* Display remark if present */}
                       {req.remark && (
@@ -382,19 +525,39 @@ function AdminDashboard() {
                       )}
                       
                       {/* Action Buttons */}
-                      <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '16px', flexWrap: 'wrap' }}>
                         {isApproved ? (
-                          <button disabled style={{ 
-                            padding: '6px 16px', 
-                            background: '#cccccc', 
-                            color: '#666666', 
-                            border: 'none', 
-                            borderRadius: 4, 
-                            fontWeight: 'bold', 
-                            cursor: 'not-allowed' 
-                          }}>
-                            Approved
-                          </button>
+                          <>
+                            <button disabled style={{ 
+                              padding: '6px 16px', 
+                              background: '#cccccc', 
+                              color: '#666666', 
+                              border: 'none', 
+                              borderRadius: 4, 
+                              fontWeight: 'bold', 
+                              cursor: 'not-allowed' 
+                            }}>
+                              Approved
+                            </button>
+                            
+                            {/* Cancel button for Approved events */}
+                            <button 
+                              onClick={() => handleCancelEvent(req.id)} 
+                              disabled={cancellingEventId === req.id} 
+                              style={{ 
+                                padding: '6px 16px', 
+                                marginLeft: '4px',
+                                background: '#f0ad4e',
+                                color: '#fff', 
+                                border: 'none', 
+                                borderRadius: 4, 
+                                fontWeight: 'bold', 
+                                cursor: cancellingEventId === req.id ? 'not-allowed' : 'pointer', 
+                                opacity: cancellingEventId === req.id ? 0.6 : 1 
+                              }}>
+                              {cancellingEventId === req.id ? 'Cancelling...' : 'Cancel Event'}
+                            </button>
+                          </>
                         ) : isRejected ? (
                           <button disabled style={{ 
                             padding: '6px 16px', 

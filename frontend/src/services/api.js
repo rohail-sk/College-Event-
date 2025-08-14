@@ -50,6 +50,9 @@ export const markRemarkAsNotified = (eventId) => {
 // Fetch all events requested by a specific faculty
 export const getEventsByFacultyId = (facultyId) => axios.get(`${BASE_URL}/events/all-requested-events/${facultyId}`);
 
+// Cancel an event
+export const cancelEvent = (eventId) => axios.delete(`${BASE_URL}/events/delete-existing-event/${eventId}`);
+
 // // Fetch events registered by a student (expects student id or email)
 // export const getRegisteredEvents = (studentIdOrEmail) => axios.get(`${BASE_URL}/events/registered`, { params: { student: studentIdOrEmail } });
 

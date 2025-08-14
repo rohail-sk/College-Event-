@@ -69,6 +69,11 @@ public class EventsService {
             repo.delete(event);
         }
     }
+
+    public void deleteEvent(Event event) {
+        repo.delete(event);
+    }
+
 }
 
 

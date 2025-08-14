@@ -113,4 +113,16 @@ public class EventController {
             return ResponseEntity.status(404).build();
         }
     }
+
+    @DeleteMapping("/delete-existing-event/{id}")
+    public ResponseEntity<?> deleteEvent(@PathVariable long id){
+        Event event = service.getEventById(id);
+        if(event != null){
+            service.deleteEvent(event);
+            return ResponseEntity.noContent().build();
+        }else{
+            return ResponseEntity.status(404).build();
+        }
+    }
+
 }
