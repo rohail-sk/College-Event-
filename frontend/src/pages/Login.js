@@ -1,7 +1,7 @@
 // src/pages/Login.js
 import React, { useState } from 'react';
-import { login, register } from '../services/api'; // 👈 import register function
-
+import { login, register } from '../services/api';
+import { handleLoginSuccess, navigateToRoleDashboard } from '../services/auth';
 
 function Login() {
   const [tab, setTab] = useState('login'); // 'login' or 'register'
@@ -13,15 +13,23 @@ function Login() {
   const handleLogin = async () => {
     try {
       const res = await login({ role, email, password });
-      localStorage.setItem('user', JSON.stringify(res.data));
-      alert("Login successful!");
-      if (role === 'admin') {
-        window.location.href = "/admin-dashboard";
-      } else if (role === 'faculty') {
-        window.location.href = "/faculty-dashboard";
-      } else {
-        window.location.href = "/student-dashboard";
+      
+      // Verify role in the response matches requested role
+      if (res.data && res.data.role !== role) {
+        console.warn('Role mismatch! Requested:', role, 'Received:', res.data.role);
+        alert(`Warning: Your account has ${res.data.role} privileges, not ${role} as selected.`);
       }
+      
+      // Store user data and token
+      handleLoginSuccess(res.data, res.data.token);
+      
+      alert("Login successful!");
+      
+      // Get actual role from server response, with fallback to selected role
+      const actualRole = (res.data && res.data.role) || role;
+      
+      // Redirect based on actual role
+      navigateToRoleDashboard(actualRole);
     } catch (error) {
       alert("Login failed. Check your credentials.");
     }

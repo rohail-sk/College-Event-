@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getEvents, getRequestedEvents, approveEventRequest, rejectEventRequest, registerFaculty, addRemarkToEvent, adminCreateEvent, getEventsByFacultyId, cancelEvent } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { getCurrentUser, logout } from '../services/auth';
 
 // Modal component for remarks
 const Modal = ({ show, onClose, title, children }) => {
@@ -48,19 +49,31 @@ const Modal = ({ show, onClose, title, children }) => {
 function AdminDashboard() {
   const navigate = useNavigate();
   
-  // Get user info from localStorage
+  // Get user info using the centralized auth service
   const getUserInfo = () => {
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      return {
-        id: user.id || user._id || '',
-        name: user.name || '',
-        email: user.email || '',
-        role: user.role || 'admin'
-      };
+      const user = getCurrentUser();
+      
+      if (!user) {
+        console.warn('No user data found');
+        return { id: '', name: '', email: '', role: '' };
+      }
+      
+      // Verify this is an admin user
+      if (user.role === 'admin') {
+        return {
+          id: user.id || user._id || '',
+          name: user.name || '',
+          email: user.email || '',
+          role: 'admin'
+        };
+      } else {
+        console.warn('User is not an admin:', user.role);
+        return { id: '', name: '', email: '', role: '' };
+      }
     } catch (error) {
       console.error('Error parsing user data:', error);
-      return { id: '', name: '', email: '', role: 'admin' };
+      return { id: '', name: '', email: '', role: '' };
     }
   };
   
@@ -71,6 +84,43 @@ function AdminDashboard() {
   const [requests, setRequests] = useState([]);
   const [rejecting, setRejecting] = useState(null);
   const [reqLoading, setReqLoading] = useState(true);
+  
+  // Check if the user is admin, otherwise redirect
+  useEffect(() => {
+    // Get the path from the URL to determine if we're intentionally on the admin page
+    const isIntentionallyOnAdminPage = window.location.pathname.includes('admin');
+    
+    // Store that we're on the admin page
+    if (isIntentionallyOnAdminPage) {
+      localStorage.setItem('lastActiveRole', 'admin');
+      
+      // Check if we have any admin data at all
+      if (!userInfo.id && userInfo.role !== 'admin') {
+        // No admin data at all, redirect to login
+        navigate('/');
+        return;
+      }
+      
+      // Even if the user has a different role, we'll let them stay if they refreshed
+      return;
+    }
+    
+    // For normal navigation (not refresh), verify user has admin role
+    if (userInfo.role !== 'admin') {
+      // Show an alert about the role mismatch
+      alert('You must be logged in as an admin to access this page');
+      
+      // Check if they might be logged in as faculty or student
+      if (userInfo.role === 'faculty') {
+        navigate('/faculty-dashboard');
+      } else if (userInfo.role === 'student') {
+        navigate('/student-dashboard');
+      } else {
+        // If no valid role found, redirect to login
+        navigate('/');
+      }
+    }
+  }, [userInfo.id, userInfo.role, navigate]);
   const [approving, setApproving] = useState(null);
   const [modifying, setModifying] = useState(null); // Track which event is being modified
   const [currentEventObj, setCurrentEventObj] = useState(null); // Store the event being modified
@@ -117,8 +167,10 @@ function AdminDashboard() {
 
   // Handle logout
   const handleLogout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    // Use the centralized logout function
+    logout();
+    
+    // Redirect to home page
     window.location.href = 'http://localhost:3000/';
   };
 

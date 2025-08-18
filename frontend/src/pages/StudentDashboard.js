@@ -1,21 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { getEvents } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { getCurrentUser, logout } from '../services/auth';
 
 function StudentDashboard() {
   const navigate = useNavigate();
   
-  // Get user info from localStorage
+  // Get user info using the auth service
   const getUserInfo = () => {
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      return {
-        name: user.name || '',
-        role: user.role || 'student',
-        email: user.email || '',
-        department: user.department || 'Computer Science',
-        id: user.id || user._id || ''
-      };
+      const user = getCurrentUser();
+      
+      if (user) {
+        return {
+          name: user.name || '',
+          role: user.role || 'student',
+          email: user.email || '',
+          department: user.department || 'Computer Science',
+          id: user.id || user._id || ''
+        };
+      }
+      
+      // No valid user data found
+      console.warn('StudentDashboard - No user data found');
+      return { name: '', role: 'student', email: '', department: 'Computer Science', id: '' };
     } catch (error) {
       console.error('Error parsing user data:', error);
       return { 
@@ -59,8 +67,8 @@ function StudentDashboard() {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    // Use the centralized logout function from auth service
+    logout();
     window.location.href = 'http://localhost:3000/';
   };
 
@@ -98,8 +106,8 @@ function StudentDashboard() {
           <h3>My Profile</h3>
           {(() => {
             try {
-              const user = JSON.parse(localStorage.getItem('user') || '{}');
-              if (!user || Object.keys(user).length === 0) {
+              // Use the userInfo object we already have from getUserInfo()
+              if (!userInfo || !userInfo.id) {
                 return <div>No profile information found. Please log in again.</div>;
               }
 

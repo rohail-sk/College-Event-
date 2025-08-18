@@ -6,6 +6,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import lombok.*;
 
+import java.time.LocalDate;
+
 @Entity
 @Data
 @AllArgsConstructor
@@ -14,8 +16,19 @@ public class Registration {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
     private long eventId;
-    private long userId;
-    private String timeStamp;
+    private long studentId;
+    private String department;
+    private String status;
+    private LocalDate date;
+    private String studentName;
+
+    public String getStudentName() {
+        return studentName;
+    }
+
+    public void setStudentName(String studentName) {
+        this.studentName = studentName;
+    }
 
     public long getId() {
         return id;
@@ -33,19 +46,35 @@ public class Registration {
         this.eventId = eventId;
     }
 
-    public long getUserId() {
-        return userId;
+    public long getStudentId() {
+        return studentId;
     }
 
-    public void setUserId(long userId) {
-        this.userId = userId;
+    public void setStudentId(long studentId) {
+        this.studentId = studentId;
     }
 
-    public String getTimeStamp() {
-        return timeStamp;
+    public String getDepartment() {
+        return department;
     }
 
-    public void setTimeStamp(String timeStamp) {
-        this.timeStamp = timeStamp;
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public LocalDate getDate() {
+        return date;
+    }
+
+    public void setDate(LocalDate date) {
+        this.date = date;
     }
 }

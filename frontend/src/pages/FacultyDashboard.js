@@ -1,37 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { getEvents, requestEvent, getRequestedEvents, getEventsByFacultyId, editEventRequest, markRemarkAsNotified, cancelEvent } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { getCurrentUser, logout } from '../services/auth';
 
 function FacultyDashboard() {
-  // Get faculty user info from localStorage with role separation
+  // Get faculty user info using the centralized auth service
   const getUserInfo = () => {
     try {
-      // First try to get faculty-specific data
-      const facultyUser = JSON.parse(localStorage.getItem('user_faculty') || 'null');
-      if (facultyUser && facultyUser.role === 'faculty') {
-        return {
-          id: facultyUser.id || facultyUser._id || facultyUser.facultyId || '',
-          name: facultyUser.name || '',
-          email: facultyUser.email || '',
-          role: 'faculty'
-        };
+      const user = getCurrentUser();
+      
+      if (!user) {
+        console.warn('No user data found');
+        return { id: '', name: '', email: '', role: '' };
       }
       
-      // If faculty-specific data not found, check generic user data but verify it's faculty role
-      const genericUser = JSON.parse(localStorage.getItem('user') || 'null');
-      if (genericUser && genericUser.role === 'faculty') {
-        // Store into faculty-specific storage to prevent future role confusion
-        localStorage.setItem('user_faculty', JSON.stringify(genericUser));
+      // Verify this is a faculty user
+      if (user.role === 'faculty') {
         return {
-          id: genericUser.id || genericUser._id || genericUser.facultyId || '',
-          name: genericUser.name || '',
-          email: genericUser.email || '',
+          id: user.id || user._id || user.facultyId || '',
+          name: user.name || '',
+          email: user.email || '',
           role: 'faculty'
         };
+      } else {
+        console.warn('User is not a faculty member:', user.role);
+        return { id: '', name: '', email: '', role: '' };
       }
-      
-      // No valid faculty data found
-      return { id: '', name: '', email: '', role: '' };
     } catch (error) {
       console.error('Error parsing faculty user data:', error);
       return { id: '', name: '', email: '', role: '' };
@@ -45,12 +39,22 @@ function FacultyDashboard() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ 
-    facultyId: userInfo.id, 
     title: '', 
     date: '', 
     description: '', 
     venue: '' 
   });
+  
+  // Update form when userInfo changes to ensure we always use the current faculty ID
+  useEffect(() => {
+    if (userInfo.id) {
+      setForm(currentForm => ({
+        ...currentForm,
+        facultyId: userInfo.id
+      }));
+      console.log('Updated form with current faculty ID:', userInfo.id);
+    }
+  }, [userInfo.id]);
   const [editingEvent, setEditingEvent] = useState(null); // Store the event being edited
   const [myRequestId, setMyRequestId] = useState(null);
   const [polling, setPolling] = useState(false);
@@ -64,27 +68,62 @@ function FacultyDashboard() {
   
   // Check user role on component mount and prevent admin data leakage
   useEffect(() => {
-    // Get latest user info and set to state
+    // Get the latest user info and set to state
     const latest = getUserInfo();
     setUserInfo(latest);
     
-    // Store last active role to help prevent confusion
-    localStorage.setItem('lastActiveRole', 'faculty');
+    // Log the user info we found
+    console.log('FacultyDashboard - Current user info:', latest);
     
-    // If we don't have a valid faculty user, check if switching dashboards is needed
+    // If we have no faculty data at all, redirect to login
+    if (!latest.id) {
+      console.warn('No faculty data found, redirecting to login');
+      setIsValidFaculty(false);
+      navigate('/');
+      return;
+    }
+    
+    // If we have a specific session ID, add it to the URL to make this page specific to this faculty
+    if (latest.sessionId && !window.location.search.includes('sessionId')) {
+      // Create a new URL with the session ID
+      const url = new URL(window.location.href);
+      url.searchParams.set('sessionId', latest.sessionId);
+      
+      // Update browser history without reloading page
+      window.history.replaceState({}, '', url);
+      console.log('Added session ID to URL:', latest.sessionId);
+    }
+    
+    // If not a refresh and user is not faculty, check if switching dashboards is needed
     if (!latest.id || latest.role !== 'faculty') {
       setIsValidFaculty(false);
       
       // Check if we have admin data but not faculty data - this means we're likely
       // trying to access faculty dashboard while logged in as admin
-      const adminData = JSON.parse(localStorage.getItem('user_admin') || 'null');
+      const sessionId = localStorage.getItem('currentSession');
+      let adminData = null;
+      
+      if (sessionId) {
+        // First check session-based storage
+        const userData = JSON.parse(localStorage.getItem(`user_${sessionId}`) || 'null');
+        if (userData && userData.role === 'admin') {
+          adminData = userData;
+        }
+      }
+      
+      // Fall back to legacy storage if needed
+      if (!adminData) {
+        adminData = JSON.parse(localStorage.getItem('user_admin') || 'null');
+      }
+      
       if (adminData && adminData.role === 'admin') {
+        // Only show the confirmation dialog if this isn't a page refresh
         const confirmSwitch = window.confirm(
           'You appear to be logged in as an admin but trying to access the Faculty dashboard. ' +
           'Would you like to switch to the Admin dashboard instead?'
         );
         if (confirmSwitch) {
-          navigate('/admin');
+          navigate('/admin-dashboard');
           return;
         }
       }
@@ -155,20 +194,29 @@ function FacultyDashboard() {
     }
     
     try {
+      // Ensure we always use the current user ID from our session
+      const currentUserInfo = getUserInfo();
+      
       let res;
       
       if (editingEvent) {
         // If we are editing an existing event request
         const payload = { 
           ...form,
+          facultyId: currentUserInfo.id, // Use current faculty ID
           status: 'Pending' // Explicitly set status to Pending when editing an event
         };
+        console.log('Editing event with faculty ID:', currentUserInfo.id);
         res = await editEventRequest(editingEvent.id || editingEvent._id, payload);
         setSuccessMsg('Event request updated and sent to admin for approval!');
         setEditingEvent(null); // Clear the editing state
       } else {
         // If this is a new event request
-        const payload = { ...form };
+        const payload = { 
+          ...form,
+          facultyId: currentUserInfo.id // Use current faculty ID
+        };
+        console.log('Creating event with faculty ID:', currentUserInfo.id);
         res = await requestEvent(payload);
         setSuccessMsg('Event request sent to admin for approval!');
       }
@@ -258,9 +306,17 @@ function FacultyDashboard() {
       if (tab === 'requests') {
         setRequestsLoading(true);
         try {
-          if (form.facultyId) {
-            const res = await getEventsByFacultyId(form.facultyId);
-            console.log('Faculty events response:', res.data);
+          // Get the current user info to ensure we have the right faculty ID
+          const currentUserInfo = getUserInfo();
+          console.log('Fetching events for faculty with ID:', currentUserInfo.id);
+          console.log('Using session ID:', currentUserInfo.sessionId);
+          
+          // Use the current user ID from session storage
+          if (currentUserInfo.id) {
+            // Add a cache-busting parameter to prevent browser caching
+            const timestamp = new Date().getTime();
+            const res = await getEventsByFacultyId(currentUserInfo.id, { timestamp });
+            console.log('Faculty events response for ID', currentUserInfo.id, ':', res.data);
             
             // Check for unnotified remarks and mark them
             const events = res.data || [];
@@ -318,10 +374,7 @@ function FacultyDashboard() {
             </button>
             <button 
               onClick={() => {
-                localStorage.removeItem('user');
-                localStorage.removeItem('user_admin');
-                localStorage.removeItem('user_faculty');
-                localStorage.removeItem('token');
+                logout();
                 navigate('/auth');
               }}
               style={{ padding: '10px 20px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
@@ -535,10 +588,8 @@ function FacultyDashboard() {
                 <div style={{ marginBottom: 16 }}><strong>Account Status:</strong> <span style={{ color: 'green' }}>Active</span></div>
                 <button
                   onClick={() => {
-                    localStorage.removeItem('user_faculty');
-                    localStorage.removeItem('user');
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('lastActiveRole');
+                    // Use the centralized logout function
+                    logout();
                     window.location.href = 'http://localhost:3000/';
                   }}
                   style={{ padding: '10px 20px', background: '#d9534f', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' }}

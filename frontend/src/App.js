@@ -13,6 +13,8 @@ function App() {
         <Route path="/dashboard" element={<Home />} />
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
         <Route path="/faculty-dashboard" element={<FacultyDashboard />} />
+        {/* Add extra route to support session IDs in URL */}
+        <Route path="/faculty-dashboard/:sessionId" element={<FacultyDashboard />} />
         <Route path="/student-dashboard" element={<StudentDashboard />} />
       </Routes>
     </BrowserRouter>
