@@ -77,11 +77,14 @@ export const getEventsByFacultyId = (facultyId, params = {}) => {
 // Cancel an event
 export const cancelEvent = (eventId) => api.delete(`/events/delete-existing-event/${eventId}`);
 
-// // Fetch events registered by a student (expects student id or email)
-// export const getRegisteredEvents = (studentIdOrEmail) => axios.get(`${BASE_URL}/events/registered`, { params: { student: studentIdOrEmail } });
+// Check if a student is already registered for an event
+export const checkEventRegistration = (studentId, eventId) => api.get(`students/check-registration/${studentId}/${eventId}`);
 
-// // Register for an event (expects eventId and student info)
-// export const registerForEvent = (data) => axios.post(`${BASE_URL}/events/register`, data);
+// Get all events that a student is registered for
+export const getStudentRegistrations = (studentId) => api.get(`/students/all-events-registered-by-student/${studentId}`);
 
-// // Cancel event registration (expects eventId and student info)
-// export const cancelEventRegistration = (data) => axios.post(`${BASE_URL}/events/cancel`, data);
+// Register for an event (expects eventId and student info)
+export const registerForEvent = (data) => api.post(`/students/register-student`, data);
+
+// Cancel event registration (expects eventId and student info)
+export const cancelEventRegistration = (data) => api.post(`/events/cancel-registration`, data);

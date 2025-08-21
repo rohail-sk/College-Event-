@@ -2,12 +2,14 @@ package com.project.college_event_backend.controller;
 
 import com.project.college_event_backend.model.Registration;
 import com.project.college_event_backend.service.StudentService;
+import org.apache.coyote.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/students")
 public class StudentController {
@@ -34,9 +36,33 @@ public class StudentController {
         }
     }
 
-//    @GetMapping("/get-students-by-faculty-id")
-//    public ResponseEntity<List<Registration>> studentsByFacultyId(@PathVariable long facultyId){
-//        Registration students = service.getStuentsByFacultyId(facultyId);
-//
-//    }
+    @GetMapping("/get-students-by-faculty-id/{facultyId}")
+    public ResponseEntity<List<Registration>> studentsByFacultyId(@PathVariable long facultyId){
+        List<Registration> students = service.getStudentsByFacultyId(facultyId);
+        if(students != null){
+            return ResponseEntity.ok(students);
+        }else{
+            return ResponseEntity.status(404).build();
+        }
+    }
+
+@GetMapping("/check-registration/{studentId}/{eventId}")
+    public ResponseEntity<Registration> checkStatus(@PathVariable long studentId, @PathVariable long eventId){
+        Registration registration = service.findByStudentIdAndEventId(studentId,eventId);
+        if(registration != null){
+            return ResponseEntity.ok(registration);
+        }else{
+            return ResponseEntity.status(404).build();
+        }
+    }
+
+    @GetMapping("/all-events-registered-by-student/{studentId}")
+    public ResponseEntity<List<Registration>> allRegisteredEventsByStudent(@PathVariable long studentId){
+        List<Registration>  Events = service.allRegisteredEventsByStudent(studentId);
+        if(Events != null){
+            return ResponseEntity.ok(Events);
+        }else{
+            return ResponseEntity.status(404).build();
+        }
+    }
 }

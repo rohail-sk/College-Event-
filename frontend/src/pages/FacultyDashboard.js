@@ -1,5 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { getEvents, requestEvent, getRequestedEvents, getEventsByFacultyId, editEventRequest, markRemarkAsNotified, cancelEvent } from '../services/api';
+
+// Modal component for detailed event view
+const Modal = ({ show, onClose, title, children }) => {
+  if (!show) return null;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        width: '90%',
+        maxWidth: '600px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        padding: '20px',
+        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ margin: 0 }}>{title}</h3>
+          <button 
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontSize: '20px',
+              cursor: 'pointer'
+            }}
+          >
+            ✖
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout } from '../services/auth';
 
@@ -42,7 +89,8 @@ function FacultyDashboard() {
     title: '', 
     date: '', 
     description: '', 
-    venue: '' 
+    venue: '',
+    info: '' 
   });
   
   // Update form when userInfo changes to ensure we always use the current faculty ID
@@ -65,6 +113,8 @@ function FacultyDashboard() {
   const [requestsLoading, setRequestsLoading] = useState(true);
   const [isValidFaculty, setIsValidFaculty] = useState(true);
   const [cancellingEventId, setCancellingEventId] = useState(null);
+  const [showEventDetailModal, setShowEventDetailModal] = useState(false);
+  const [currentEventObj, setCurrentEventObj] = useState(null);
   
   // Check user role on component mount and prevent admin data leakage
   useEffect(() => {
@@ -227,7 +277,8 @@ function FacultyDashboard() {
         title: '', 
         date: '', 
         description: '', 
-        venue: '' 
+        venue: '',
+        info: '' 
       });
       setMyRequestId(res.data?.id || res.data?._id || null);
       setPolling(true);
@@ -399,11 +450,40 @@ function FacultyDashboard() {
                 events.length === 0 ? <div>No events found.</div> : (
                   <div>
                     {events.map(event => (
-                      <div key={event.id || event._id} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16, marginBottom: 16, background: '#fafafa' }}>
+                      <div 
+                        key={event.id || event._id} 
+                        style={{ 
+                          border: '1px solid #ddd', 
+                          borderRadius: 8, 
+                          padding: 16, 
+                          marginBottom: 16, 
+                          background: '#fafafa',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onClick={() => {
+                          setCurrentEventObj(event);
+                          setShowEventDetailModal(true);
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.boxShadow = 'none';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                      >
                         <div style={{ fontWeight: 'bold', fontSize: 16 }}>{event.title || event.name}</div>
                         <div>Date: {event.date || event.event_date} &nbsp; | &nbsp; Time: {event.time}</div>
                         <div>Venue: {event.venue}</div>
                         <div>Description: {event.description}</div>
+                        <div style={{ 
+                          marginTop: 8, 
+                          color: '#0275d8', 
+                          fontWeight: 'bold', 
+                          fontSize: 14 
+                        }}>Click for more details</div>
                       </div>
                     ))}
                   </div>
@@ -455,7 +535,8 @@ function FacultyDashboard() {
                                       title: request.title || '',
                                       date: request.date || '',
                                       description: request.description || '',
-                                      venue: request.venue || ''
+                                      venue: request.venue || '',
+                                      info: request.info || ''
                                     });
                                   }}
                                 >
@@ -511,11 +592,28 @@ function FacultyDashboard() {
                 </div>
                 <div style={{ marginBottom: 12 }}>
                   <label>Description:</label><br />
-                  <textarea name="description" value={form.description} onChange={handleChange} required style={{ width: '100%', padding: 8 }} />
+                  <textarea 
+                    name="description" 
+                    value={form.description} 
+                    onChange={handleChange} 
+                    required 
+                    style={{ width: '100%', padding: 8 }}
+                    placeholder="Brief description of the event"
+                  />
                 </div>
                 <div style={{ marginBottom: 12 }}>
                   <label>Venue:</label><br />
                   <input type="text" name="venue" value={form.venue} onChange={handleChange} required style={{ width: '100%', padding: 8 }} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label>Detailed Information:</label><br />
+                  <textarea 
+                    name="info" 
+                    value={form.info} 
+                    onChange={handleChange} 
+                    style={{ width: '100%', padding: 8, minHeight: 150 }}
+                    placeholder="Provide detailed information about the event (schedule, speakers, requirements, etc.)"
+                  />
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   {editingEvent && (
@@ -528,7 +626,8 @@ function FacultyDashboard() {
                           title: '', 
                           date: '', 
                           description: '', 
-                          venue: '' 
+                          venue: '',
+                          info: ''
                         });
                       }} 
                       style={{ 
@@ -601,6 +700,68 @@ function FacultyDashboard() {
           )}
         </>
       )}
+      
+      {/* Event Detail Modal */}
+      <Modal
+        show={showEventDetailModal}
+        onClose={() => setShowEventDetailModal(false)}
+        title="Event Details"
+      >
+        {currentEventObj && (
+          <div>
+            <h3 style={{ margin: '0 0 16px 0' }}>{currentEventObj.title || currentEventObj.name}</h3>
+            
+            <div style={{ marginBottom: '12px' }}>
+              <strong>Date:</strong> {currentEventObj.event_date || currentEventObj.date}
+              {currentEventObj.time && <span> | <strong>Time:</strong> {currentEventObj.time}</span>}
+            </div>
+            
+            <div style={{ marginBottom: '12px' }}>
+              <strong>Venue:</strong> {currentEventObj.venue}
+            </div>
+            
+            <div style={{ marginBottom: '12px' }}>
+              <strong>Description:</strong> 
+              <p style={{ margin: '8px 0' }}>{currentEventObj.description}</p>
+            </div>
+            
+            {currentEventObj.info && (
+              <div style={{ marginBottom: '12px' }}>
+                <strong>Additional Information:</strong>
+                <p style={{ margin: '8px 0', whiteSpace: 'pre-wrap' }}>{currentEventObj.info}</p>
+              </div>
+            )}
+
+            {currentEventObj.status && (
+              <div style={{ marginBottom: '12px' }}>
+                <strong>Status:</strong> {currentEventObj.status}
+              </div>
+            )}
+
+            {currentEventObj.remark && (
+              <div style={{ marginBottom: '12px' }}>
+                <strong>Remarks:</strong> 
+                <p style={{ margin: '8px 0' }}>{currentEventObj.remark}</p>
+              </div>
+            )}
+            
+            <div style={{ marginTop: '24px', textAlign: 'right' }}>
+              <button 
+                style={{ 
+                  padding: '8px 16px', 
+                  background: '#ddd', 
+                  border: 'none', 
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }} 
+                onClick={() => setShowEventDetailModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

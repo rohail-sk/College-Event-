@@ -21,6 +21,17 @@ public class Event {
     private String description;
     private String status;
     private String remark;
+    @Lob
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String info;
+
+    public String getInfo() {
+        return info;
+    }
+
+    public void setInfo(String info) {
+        this.info = info;
+    }
 
     public long getFacultyId() {
         return facultyId;

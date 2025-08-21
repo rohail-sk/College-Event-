@@ -134,7 +134,7 @@ function AdminDashboard() {
   const [facultyError, setFacultyError] = useState('');
   
   // Event creation state
-  const [eventForm, setEventForm] = useState({ title: '', date: '', venue: '', description: '' });
+  const [eventForm, setEventForm] = useState({ title: '', date: '', venue: '', description: '', info: '' });
   const [eventSubmitting, setEventSubmitting] = useState(false);
   const [eventSuccess, setEventSuccess] = useState('');
   const [eventError, setEventError] = useState('');
@@ -142,6 +142,7 @@ function AdminDashboard() {
   // My Events state
   const [myEvents, setMyEvents] = useState([]);
   const [myEventsLoading, setMyEventsLoading] = useState(true);
+  const [showEventDetailModal, setShowEventDetailModal] = useState(false);
   const [cancellingEventId, setCancellingEventId] = useState(null);
   
   // Handle cancel event
@@ -430,11 +431,41 @@ function AdminDashboard() {
             events.length === 0 ? <div>No events found.</div> : (
               <div>
                 {events.map(event => (
-                  <div key={event.id} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 20, marginBottom: 24, background: '#fafafa', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                  <div 
+                    key={event.id} 
+                    style={{ 
+                      border: '1px solid #ddd', 
+                      borderRadius: 8, 
+                      padding: 20, 
+                      marginBottom: 24, 
+                      background: '#fafafa', 
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onClick={() => {
+                      setCurrentEventObj(event);
+                      setShowEventDetailModal(true);
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
                     <div style={{ fontWeight: 'bold', fontSize: 16 }}>{event.title || event.name}</div>
                     <div>Date: {event.event_date || event.date}</div>
                     <div>Description: {event.description}</div>
                     <div>Venue: {event.venue}</div>
+                    <div style={{ 
+                      marginTop: 8, 
+                      color: '#0275d8', 
+                      fontWeight: 'bold', 
+                      fontSize: 14 
+                    }}>Click for more details</div>
                   </div>
                 ))}
               </div>
@@ -727,6 +758,18 @@ function AdminDashboard() {
                   onChange={handleEventChange} 
                   required 
                   style={{ width: '100%', padding: 8, minHeight: 100 }} 
+                  placeholder="Brief description of the event"
+                />
+              </div>
+              
+              <div style={{ marginBottom: 12 }}>
+                <label>Detailed Information:</label><br />
+                <textarea 
+                  name="info" 
+                  value={eventForm.info} 
+                  onChange={handleEventChange} 
+                  style={{ width: '100%', padding: 8, minHeight: 150 }} 
+                  placeholder="Provide detailed information about the event (schedule, speakers, requirements, etc.)"
                 />
               </div>
               
@@ -928,6 +971,67 @@ function AdminDashboard() {
                 }}
               >
                 {modifying === currentEventObj.id ? 'Submitting...' : 'Submit Remark'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Event Detail Modal */}
+      <Modal
+        show={showEventDetailModal}
+        onClose={() => setShowEventDetailModal(false)}
+        title="Event Details"
+      >
+        {currentEventObj && (
+          <div>
+            <h3 style={{ margin: '0 0 16px 0' }}>{currentEventObj.title || currentEventObj.name}</h3>
+            
+            <div style={{ marginBottom: '12px' }}>
+              <strong>Date:</strong> {currentEventObj.event_date || currentEventObj.date}
+            </div>
+            
+            <div style={{ marginBottom: '12px' }}>
+              <strong>Venue:</strong> {currentEventObj.venue}
+            </div>
+            
+            <div style={{ marginBottom: '12px' }}>
+              <strong>Description:</strong> 
+              <p style={{ margin: '8px 0' }}>{currentEventObj.description}</p>
+            </div>
+            
+            {currentEventObj.info && (
+              <div style={{ marginBottom: '12px' }}>
+                <strong>Additional Information:</strong>
+                <p style={{ margin: '8px 0', whiteSpace: 'pre-wrap' }}>{currentEventObj.info}</p>
+              </div>
+            )}
+
+            {currentEventObj.status && (
+              <div style={{ marginBottom: '12px' }}>
+                <strong>Status:</strong> {currentEventObj.status}
+              </div>
+            )}
+
+            {currentEventObj.remark && (
+              <div style={{ marginBottom: '12px' }}>
+                <strong>Remarks:</strong> 
+                <p style={{ margin: '8px 0' }}>{currentEventObj.remark}</p>
+              </div>
+            )}
+            
+            <div style={{ marginTop: '24px', textAlign: 'right' }}>
+              <button 
+                style={{ 
+                  padding: '8px 16px', 
+                  background: '#ddd', 
+                  border: 'none', 
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }} 
+                onClick={() => setShowEventDetailModal(false)}
+              >
+                Close
               </button>
             </div>
           </div>

@@ -17,10 +17,18 @@ public class Registration {
     private long id;
     private long eventId;
     private long studentId;
-    private String department;
     private String status;
     private LocalDate date;
     private String studentName;
+    private long facultyId;
+
+    public long getFacultyId() {
+        return facultyId;
+    }
+
+    public void setFacultyId(long facultyId) {
+        this.facultyId = facultyId;
+    }
 
     public String getStudentName() {
         return studentName;
@@ -52,14 +60,6 @@ public class Registration {
 
     public void setStudentId(long studentId) {
         this.studentId = studentId;
-    }
-
-    public String getDepartment() {
-        return department;
-    }
-
-    public void setDepartment(String department) {
-        this.department = department;
     }
 
     public String getStatus() {
