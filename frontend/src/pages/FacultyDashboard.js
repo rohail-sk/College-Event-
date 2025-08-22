@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getEvents, requestEvent, getRequestedEvents, getEventsByFacultyId, editEventRequest, markRemarkAsNotified, cancelEvent } from '../services/api';
+import { getEvents, requestEvent, getRequestedEvents, getEventsByFacultyId, editEventRequest, markRemarkAsNotified, cancelEvent, getEventRegistrations } from '../services/api';
 
 // Modal component for detailed event view
 const Modal = ({ show, onClose, title, children }) => {
@@ -93,6 +93,12 @@ function FacultyDashboard() {
     info: '' 
   });
   
+  // State for registered students tab
+  const [facultyEvents, setFacultyEvents] = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [registeredStudents, setRegisteredStudents] = useState([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  
   // Update form when userInfo changes to ensure we always use the current faculty ID
   useEffect(() => {
     if (userInfo.id) {
@@ -122,12 +128,8 @@ function FacultyDashboard() {
     const latest = getUserInfo();
     setUserInfo(latest);
     
-    // Log the user info we found
-    console.log('FacultyDashboard - Current user info:', latest);
-    
     // If we have no faculty data at all, redirect to login
     if (!latest.id) {
-      console.warn('No faculty data found, redirecting to login');
       setIsValidFaculty(false);
       navigate('/');
       return;
@@ -184,6 +186,44 @@ function FacultyDashboard() {
     }
   }, [navigate]);
 
+  // Function to fetch all events created by this faculty
+  const fetchFacultyEvents = async () => {
+    if (!userInfo.id) return;
+    
+    try {
+      setLoading(true);
+      const response = await getEventsByFacultyId(userInfo.id);
+      // Only show approved events
+      const approvedEvents = (response.data || []).filter(event => {
+        const status = (event.status || '').toString().trim().toLowerCase();
+        return status === 'approved';
+      });
+      setFacultyEvents(approvedEvents);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching faculty events:', error);
+      setFacultyEvents([]);
+      setLoading(false);
+    }
+  };
+  
+  // Function to fetch students registered for a specific event
+  const fetchRegisteredStudents = async (eventId) => {
+    if (!eventId) return;
+    
+    try {
+      setLoadingStudents(true);
+      setSelectedEventId(eventId);
+      const response = await getEventRegistrations(eventId);
+      setRegisteredStudents(response.data || []);
+      setLoadingStudents(false);
+    } catch (error) {
+      console.error('Error fetching registered students:', error);
+      setRegisteredStudents([]);
+      setLoadingStudents(false);
+    }
+  };
+
   // Fetch all events
   useEffect(() => {
     const fetchEvents = async () => {
@@ -203,6 +243,16 @@ function FacultyDashboard() {
     };
     fetchEvents();
   }, []);
+  
+  // Fetch faculty events when registrations tab is selected
+  useEffect(() => {
+    if (tab === 'registrations') {
+      fetchFacultyEvents();
+      // Reset selected event and students
+      setSelectedEventId(null);
+      setRegisteredStudents([]);
+    }
+  }, [tab, userInfo.id]);
 
   // Handle form input
   const handleChange = e => {
@@ -359,15 +409,11 @@ function FacultyDashboard() {
         try {
           // Get the current user info to ensure we have the right faculty ID
           const currentUserInfo = getUserInfo();
-          console.log('Fetching events for faculty with ID:', currentUserInfo.id);
-          console.log('Using session ID:', currentUserInfo.sessionId);
-          
           // Use the current user ID from session storage
           if (currentUserInfo.id) {
             // Add a cache-busting parameter to prevent browser caching
             const timestamp = new Date().getTime();
             const res = await getEventsByFacultyId(currentUserInfo.id, { timestamp });
-            console.log('Faculty events response for ID', currentUserInfo.id, ':', res.data);
             
             // Check for unnotified remarks and mark them
             const events = res.data || [];
@@ -440,6 +486,7 @@ function FacultyDashboard() {
             <button onClick={() => setTab('view')} style={{ background: tab === 'view' ? '#333' : '#eee', color: tab === 'view' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>View Upcoming Events</button>
             <button onClick={() => setTab('requests')} style={{ background: tab === 'requests' ? '#333' : '#eee', color: tab === 'requests' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>My Events</button>
             <button onClick={() => setTab('create')} style={{ background: tab === 'create' ? '#333' : '#eee', color: tab === 'create' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Request New Event</button>
+            <button onClick={() => setTab('registrations')} style={{ background: tab === 'registrations' ? '#333' : '#eee', color: tab === 'registrations' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Registered Students</button>
             <button onClick={() => setTab('profile')} style={{ background: tab === 'profile' ? '#333' : '#eee', color: tab === 'profile' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>My Profile</button>
           </div>
 
@@ -696,6 +743,79 @@ function FacultyDashboard() {
                   Logout
                 </button>
               </div>
+            </div>
+          )}
+          
+          {tab === 'registrations' && (
+            <div>
+              <h3>Registered Students</h3>
+              
+              {loading ? (
+                <div>Loading your events...</div>
+              ) : facultyEvents.length === 0 ? (
+                <div>No events found. Only approved events will appear here.</div>
+              ) : (
+                <div>
+                  <p>Select an event to view registered students:</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+                    {facultyEvents.map(event => (
+                      <div
+                        key={event.id || event._id}
+                        onClick={() => fetchRegisteredStudents(event.id || event._id)}
+                        style={{
+                          padding: '12px',
+                          border: `1px solid ${selectedEventId === (event.id || event._id) ? '#333' : '#ddd'}`,
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          background: selectedEventId === (event.id || event._id) ? '#f0f0f0' : 'white',
+                          minWidth: '200px'
+                        }}
+                      >
+                        <h4 style={{ margin: '0 0 8px 0' }}>{event.title}</h4>
+                        <p style={{ margin: '0', fontSize: '14px' }}>
+                          {new Date(event.date).toLocaleDateString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {selectedEventId && (
+                    <>
+                      <h4>Student Registrations</h4>
+                      {loadingStudents ? (
+                        <div>Loading registrations...</div>
+                      ) : registeredStudents.length === 0 ? (
+                        <div>No students have registered for this event yet.</div>
+                      ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr>
+                                <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', background: '#f2f2f2' }}>Student Name</th>
+                                <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', background: '#f2f2f2' }}>Student ID</th>
+                                <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', background: '#f2f2f2' }}>Event ID</th>
+                                <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', background: '#f2f2f2' }}>Registration Date</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {registeredStudents.map((registration, index) => (
+                                <tr key={index} style={{ background: index % 2 === 0 ? '#fff' : '#f9f9f9' }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{registration.studentName}</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{registration.studentId}</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{registration.eventId}</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>
+                                    {(registration.date || registration.registrationDate) ? new Date(registration.date || registration.registrationDate).toLocaleDateString() : 'N/A'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </>

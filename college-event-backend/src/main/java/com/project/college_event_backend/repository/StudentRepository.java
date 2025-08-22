@@ -18,4 +18,7 @@ public interface StudentRepository extends JpaRepository<Registration,Long> {
 
 @Query("SELECT u FROM Registration u WHERE u.studentId = :studentId")
     List<Registration> findByStudentId(long studentId);
+
+@Query("SELECT u FROM Registration u WHERE u.eventId = :eventId")
+    List<Registration> findByEventId(long eventId);
 }

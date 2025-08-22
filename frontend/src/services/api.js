@@ -57,12 +57,10 @@ export const editEventRequest = (eventId, eventData) => api.put(`/events/edit-ex
 export const markRemarkAsNotified = (eventId) => {
   // Make sure we have a valid event ID
   if (!eventId) {
-    console.error('Invalid eventId provided to markRemarkAsNotified:', eventId);
     return Promise.reject(new Error('Invalid event ID'));
   }
   return api.put(`/events/mark-remark-notified/${eventId}`, { remarkNotified: true })
     .catch(error => {
-      console.error('Failed to mark remark as notified:', error);
       throw error;
     });
 };
@@ -86,5 +84,22 @@ export const getStudentRegistrations = (studentId) => api.get(`/students/all-eve
 // Register for an event (expects eventId and student info)
 export const registerForEvent = (data) => api.post(`/students/register-student`, data);
 
-// Cancel event registration (expects eventId and student info)
-export const cancelEventRegistration = (data) => api.post(`/events/cancel-registration`, data);
+// Cancel event registration (expects registration ID)
+export const cancelEventRegistration = (data) => {
+  // No logging of sensitive data
+  return api.delete(`/students/delete-student`, { data: data })
+    .then(response => {
+      // A 204 No Content is a valid success response for DELETE operations
+      return response;
+    })
+    .catch(error => {
+      // Some axios versions might throw an error for 204 responses
+      if (error.response && error.response.status === 204) {
+        return { status: 204 };
+      }
+      throw error;
+    });
+};
+
+// Get all students registered for a specific event
+export const getEventRegistrations = (eventId) => api.get(`/faculty/all-registrations/${eventId}`);

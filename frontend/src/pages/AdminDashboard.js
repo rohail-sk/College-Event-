@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getEvents, getRequestedEvents, approveEventRequest, rejectEventRequest, registerFaculty, addRemarkToEvent, adminCreateEvent, getEventsByFacultyId, cancelEvent } from '../services/api';
+import { getEvents, getRequestedEvents, approveEventRequest, rejectEventRequest, registerFaculty, addRemarkToEvent, adminCreateEvent, getEventsByFacultyId, cancelEvent, getEventRegistrations } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout } from '../services/auth';
 
@@ -55,7 +55,6 @@ function AdminDashboard() {
       const user = getCurrentUser();
       
       if (!user) {
-        console.warn('No user data found');
         return { id: '', name: '', email: '', role: '' };
       }
       
@@ -68,7 +67,6 @@ function AdminDashboard() {
           role: 'admin'
         };
       } else {
-        console.warn('User is not an admin:', user.role);
         return { id: '', name: '', email: '', role: '' };
       }
     } catch (error) {
@@ -84,6 +82,11 @@ function AdminDashboard() {
   const [requests, setRequests] = useState([]);
   const [rejecting, setRejecting] = useState(null);
   const [reqLoading, setReqLoading] = useState(true);
+  
+  // State for registered students tab
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [registeredStudents, setRegisteredStudents] = useState([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
   
   // Check if the user is admin, otherwise redirect
   useEffect(() => {
@@ -209,6 +212,23 @@ function AdminDashboard() {
     };
     fetchRequests();
   }, []);
+  
+  // Function to fetch students registered for a specific event
+  const fetchRegisteredStudents = async (eventId) => {
+    if (!eventId) return;
+    
+    try {
+      setLoadingStudents(true);
+      setSelectedEventId(eventId);
+      const response = await getEventRegistrations(eventId);
+      setRegisteredStudents(response.data || []);
+      setLoadingStudents(false);
+    } catch (error) {
+      console.error('Error fetching registered students:', error);
+      setRegisteredStudents([]);
+      setLoadingStudents(false);
+    }
+  };
   
   // Fetch my events (admin's events by facultyId)
   useEffect(() => {
@@ -418,6 +438,7 @@ function AdminDashboard() {
           <button onClick={() => setTab('view')} style={{ background: tab === 'view' ? '#333' : '#eee', color: tab === 'view' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>View All Events</button>
           <button onClick={() => setTab('requests')} style={{ background: tab === 'requests' ? '#333' : '#eee', color: tab === 'requests' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Requested Events</button>
           <button onClick={() => setTab('myevents')} style={{ background: tab === 'myevents' ? '#333' : '#eee', color: tab === 'myevents' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>My Events</button>
+          <button onClick={() => setTab('registrations')} style={{ background: tab === 'registrations' ? '#333' : '#eee', color: tab === 'registrations' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Registered Students</button>
           <button onClick={() => setTab('create')} style={{ background: tab === 'create' ? '#333' : '#eee', color: tab === 'create' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Create Event</button>
           <button onClick={() => setTab('faculty')} style={{ background: tab === 'faculty' ? '#333' : '#eee', color: tab === 'faculty' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Add Faculty</button>
           <button onClick={() => setTab('profile')} style={{ background: tab === 'profile' ? '#333' : '#eee', color: tab === 'profile' ? '#fff' : '#333', border: 'none', padding: '0.5rem 1.5rem', cursor: 'pointer' }}>My Profile</button>
@@ -864,6 +885,82 @@ function AdminDashboard() {
               </div>
             )}
           </div>
+        </div>
+      )}
+      
+      {tab === 'registrations' && (
+        <div>
+          <h3>Registered Students</h3>
+          
+          {loading ? (
+            <div>Loading events...</div>
+          ) : events.length === 0 ? (
+            <div>No events found. Only approved events will appear here.</div>
+          ) : (
+            <div>
+              <p>Select an event to view registered students:</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+                {events.map(event => (
+                  <div
+                    key={event.id || event._id}
+                    onClick={() => fetchRegisteredStudents(event.id || event._id)}
+                    style={{
+                      padding: '12px',
+                      border: `1px solid ${selectedEventId === (event.id || event._id) ? '#333' : '#ddd'}`,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      background: selectedEventId === (event.id || event._id) ? '#f0f0f0' : 'white',
+                      minWidth: '200px'
+                    }}
+                  >
+                    <h4 style={{ margin: '0 0 8px 0' }}>{event.title}</h4>
+                    <p style={{ margin: '0', fontSize: '14px' }}>
+                      {new Date(event.date).toLocaleDateString()}
+                    </p>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#666' }}>
+                      Faculty: {event.facultyName || 'Unknown'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              
+              {selectedEventId && (
+                <>
+                  <h4>Student Registrations</h4>
+                  {loadingStudents ? (
+                    <div>Loading registrations...</div>
+                  ) : registeredStudents.length === 0 ? (
+                    <div>No students have registered for this event yet.</div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', background: '#f2f2f2' }}>Student Name</th>
+                            <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', background: '#f2f2f2' }}>Student ID</th>
+                            <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', background: '#f2f2f2' }}>Event ID</th>
+                            <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', background: '#f2f2f2' }}>Registration Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {registeredStudents.map((registration, index) => (
+                            <tr key={index} style={{ background: index % 2 === 0 ? '#fff' : '#f9f9f9' }}>
+                              <td style={{ border: '1px solid #ddd', padding: '8px' }}>{registration.studentName}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px' }}>{registration.studentId}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px' }}>{registration.eventId}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px' }}>
+                                {(registration.date || registration.registrationDate) ? new Date(registration.date || registration.registrationDate).toLocaleDateString() : 'N/A'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
       

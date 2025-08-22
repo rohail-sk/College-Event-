@@ -21,6 +21,7 @@ public class Event {
     private String description;
     private String status;
     private String remark;
+    private String facultyName;
     @Lob
     @Column(nullable = false, columnDefinition = "TEXT")
     private String info;
@@ -97,4 +98,11 @@ public class Event {
         this.status = status;
     }
 
+    public String getFacultyName() {
+        return facultyName;
+    }
+
+    public void setFacultyName(String facultyName) {
+        this.facultyName = facultyName;
+    }
 }

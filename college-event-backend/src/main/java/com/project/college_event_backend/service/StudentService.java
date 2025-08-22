@@ -35,6 +35,7 @@ public class StudentService {
             req.setFacultyId(event.getFacultyId());
             req.setStatus("Registered");
             req.setDate(LocalDate.now());
+            req.setFacultyName(user.getName());
             return repo.save(req);
         }
         else{
@@ -58,5 +59,12 @@ public class StudentService {
 
     public List<Registration> allRegisteredEventsByStudent(long studentId) {
         return repo.findByStudentId(studentId);
+    }
+    public Registration findById(long id){
+        return repo.findById(id).orElse(null);
+    }
+
+    public void deleteRegistration(Registration student) {
+        repo.delete(student);
     }
 }

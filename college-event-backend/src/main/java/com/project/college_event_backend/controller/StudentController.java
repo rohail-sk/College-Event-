@@ -65,4 +65,16 @@ public class StudentController {
             return ResponseEntity.status(404).build();
         }
     }
+
+    @DeleteMapping("/delete-student")
+    public ResponseEntity<?> delete(@RequestBody Registration req){
+        Registration student = service.findById(req.getId());
+        if(student != null){
+            service.deleteRegistration(student);
+            return ResponseEntity.noContent().build();
+        }else{
+            return ResponseEntity.status(404).build();
+        }
+    }
+
 }

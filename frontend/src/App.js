@@ -5,6 +5,11 @@ import AdminDashboard from './pages/AdminDashboard';
 import FacultyDashboard from './pages/FacultyDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 
+// Import Bootstrap CSS (we'll add this via CDN until npm install works)
+import './App.css';
+import './styles/customStyles.css';
+import './styles/globals.css';
+
 function App() {
   return (
     <BrowserRouter>

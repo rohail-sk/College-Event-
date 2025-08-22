@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getEvents, registerForEvent, checkEventRegistration, getStudentRegistrations } from '../services/api';
+import { getEvents, registerForEvent, checkEventRegistration, getStudentRegistrations, cancelEventRegistration } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout } from '../services/auth';
 
@@ -90,6 +90,7 @@ function StudentDashboard() {
   const [enrolledEventIds, setEnrolledEventIds] = useState([]);
   const [enrolledEvents, setEnrolledEvents] = useState([]);
   const [loadingEnrolled, setLoadingEnrolled] = useState(false);
+  const [registrationMap, setRegistrationMap] = useState({});
 
   // Function to check if student is enrolled in an event
   const isEnrolled = (eventId) => {
@@ -126,6 +127,16 @@ function StudentDashboard() {
         const registeredEventIds = registrations.map(reg => 
           reg.eventId || reg.event?._id || reg.event?.id || reg._id
         ).filter(Boolean);
+        
+        // Create a mapping of eventId to registrationId for cancellation
+        const regMap = {};
+        registrations.forEach(reg => {
+          const eventId = reg.eventId || reg.event?._id || reg.event?.id || reg._id;
+          if (eventId) {
+            regMap[eventId] = reg.id || reg._id;
+          }
+        });
+        setRegistrationMap(regMap);
         
         setEnrolledEventIds(registeredEventIds);
         
@@ -221,7 +232,7 @@ function StudentDashboard() {
       const response = await registerForEvent({
         studentId: userInfo.id,
         eventId: eventId,
-        registrationDate: new Date().toISOString()
+        date: new Date().toISOString()
       });
       
       if (response.data && (response.data.status === 'Registered' || response.data.status === 'Success')) {
@@ -237,6 +248,70 @@ function StudentDashboard() {
       setEnrollmentError(error.response?.data?.message || 'Failed to enroll in event. Please try again.');
     } finally {
       setEnrolling(false);
+    }
+  };
+  
+  // Handle cancellation of event enrollment
+  const [cancelling, setCancelling] = useState(false);
+  const [cancellationError, setCancellationError] = useState('');
+  const [cancellationSuccess, setCancellationSuccess] = useState('');
+  
+  const handleCancelEnrollment = async (eventId) => {
+    if (!userInfo.id) {
+      setCancellationError('You must be logged in to cancel enrollment.');
+      return;
+    }
+    
+    setCancelling(true);
+    setCancellationError('');
+    setCancellationSuccess('');
+    
+    try {
+      // Get the registration ID from our mapping
+      const registrationId = registrationMap[eventId];
+      
+      if (!registrationId) {
+        setCancellationError('Could not find registration information. Please try refreshing the page.');
+        setCancelling(false);
+        return;
+      }
+      
+      const response = await cancelEventRegistration({
+        id: registrationId
+      });
+      
+      // For a successful deletion, the backend returns 204 No Content
+      // which means there's no response.data, but the request was successful
+      if (response && (response.status === 204 || response.status === 200 || 
+          (response.data && (response.data.status === 'Cancelled' || response.data.status === 'Success')))) {
+        // Remove the event ID from enrolled events
+        setEnrolledEventIds(prev => prev.filter(id => id !== eventId));
+        setCancellationSuccess('Successfully cancelled enrollment.');
+        
+        // Refresh enrolled events list
+        setTimeout(() => {
+          fetchEnrolledEvents();
+          setShowModal(false);
+        }, 1500); // Close modal after 1.5 seconds
+      } else {
+        setCancellationError('Failed to cancel enrollment. Please try again.');
+      }
+    } catch (error) {
+      // If the error is a 204 response, it's actually a success
+      if (error.response && error.response.status === 204) {
+        setEnrolledEventIds(prev => prev.filter(id => id !== eventId));
+        setCancellationSuccess('Successfully cancelled enrollment.');
+        
+        // Refresh enrolled events list
+        setTimeout(() => {
+          fetchEnrolledEvents();
+          setShowModal(false);
+        }, 1500); // Close modal after 1.5 seconds
+      } else {
+        setCancellationError(error.response?.data?.message || 'Failed to cancel enrollment. Please try again.');
+      }
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -370,6 +445,8 @@ function StudentDashboard() {
                 onClick={() => {
                   setSelectedEvent(event);
                   setShowModal(true);
+                  // Keep track that we're coming from the my-events tab
+                  // This helps show the correct button in the modal
                 }}
                 onMouseOver={(e) => {
                   e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
@@ -471,6 +548,31 @@ function StudentDashboard() {
               </div>
             )}
             
+            {/* Cancellation messages */}
+            {cancellationError && (
+              <div style={{ 
+                marginTop: 15, 
+                padding: '10px 15px', 
+                backgroundColor: '#ffecec', 
+                color: '#721c24', 
+                borderRadius: 4 
+              }}>
+                {cancellationError}
+              </div>
+            )}
+            
+            {cancellationSuccess && (
+              <div style={{ 
+                marginTop: 15, 
+                padding: '10px 15px', 
+                backgroundColor: '#d4edda', 
+                color: '#155724', 
+                borderRadius: 4 
+              }}>
+                {cancellationSuccess}
+              </div>
+            )}
+            
             <div style={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
@@ -491,22 +593,41 @@ function StudentDashboard() {
                 Close
               </button>
               
-              <button
-                onClick={() => handleEnroll(selectedEvent.id || selectedEvent._id)}
-                disabled={enrolling || isEnrolled(selectedEvent.id || selectedEvent._id)}
-                style={{
-                  padding: '10px 20px',
-                  background: isEnrolled(selectedEvent.id || selectedEvent._id) ? '#28a745' : '#007bff',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 4,
-                  cursor: enrolling ? 'not-allowed' : 'pointer',
-                  opacity: enrolling ? 0.7 : 1
-                }}
-              >
-                {enrolling ? 'Enrolling...' : 
-                 isEnrolled(selectedEvent.id || selectedEvent._id) ? 'Enrolled' : 'Enroll Now'}
-              </button>
+              {/* If enrolled and viewing from My Enrollments tab, show Cancel button */}
+              {tab === 'my-events' && isEnrolled(selectedEvent.id || selectedEvent._id) ? (
+                <button
+                  onClick={() => handleCancelEnrollment(selectedEvent.id || selectedEvent._id)}
+                  disabled={cancelling}
+                  style={{
+                    padding: '10px 20px',
+                    background: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: cancelling ? 'not-allowed' : 'pointer',
+                    opacity: cancelling ? 0.7 : 1
+                  }}
+                >
+                  {cancelling ? 'Cancelling...' : 'Remove Enrollment'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleEnroll(selectedEvent.id || selectedEvent._id)}
+                  disabled={enrolling || isEnrolled(selectedEvent.id || selectedEvent._id)}
+                  style={{
+                    padding: '10px 20px',
+                    background: isEnrolled(selectedEvent.id || selectedEvent._id) ? '#28a745' : '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: enrolling ? 'not-allowed' : 'pointer',
+                    opacity: enrolling ? 0.7 : 1
+                  }}
+                >
+                  {enrolling ? 'Enrolling...' : 
+                   isEnrolled(selectedEvent.id || selectedEvent._id) ? 'Enrolled' : 'Enroll Now'}
+                </button>
+              )}
             </div>
           </div>
         )}

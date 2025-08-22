@@ -21,6 +21,7 @@ public class Registration {
     private LocalDate date;
     private String studentName;
     private long facultyId;
+    private String facultyName;
 
     public long getFacultyId() {
         return facultyId;
@@ -72,6 +73,14 @@ public class Registration {
 
     public LocalDate getDate() {
         return date;
+    }
+
+    public String getFacultyName() {
+        return facultyName;
+    }
+
+    public void setFacultyName(String facultyName) {
+        this.facultyName = facultyName;
     }
 
     public void setDate(LocalDate date) {
